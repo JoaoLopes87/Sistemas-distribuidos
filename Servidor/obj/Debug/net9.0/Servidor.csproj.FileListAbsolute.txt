@@ -1,0 +1,14 @@
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\bin\Debug\net9.0\Servidor.exe
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\bin\Debug\net9.0\Servidor.deps.json
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\bin\Debug\net9.0\Servidor.runtimeconfig.json
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\bin\Debug\net9.0\Servidor.dll
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\bin\Debug\net9.0\Servidor.pdb
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servidor.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servidor.AssemblyInfoInputs.cache
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servidor.AssemblyInfo.cs
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servidor.csproj.CoreCompileInputs.cache
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servidor.dll
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\refint\Servidor.dll
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servidor.pdb
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servidor.genruntimeconfig.cache
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\ref\Servidor.dll

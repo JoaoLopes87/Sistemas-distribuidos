@@ -1,53 +1,113 @@
 using System;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
+using System.IO;
+using System.Threading;
 
 class Gateway
 {
+    static TcpClient serverClient;
+
+    static StreamWriter serverWriter;
+
+    static object lockObject=new object();
+    
     static void Main()
     {
-        TcpListener listener = new TcpListener(IPAddress.Any, 5000);
-        listener.Start();
+        string serverIP="127.0.0.1";
 
-        Console.WriteLine("Gateway started on port 5000");
+        int serverPort=6000;
 
-        while (true)
-        {
-            TcpClient sensorClient = listener.AcceptTcpClient();
-            Console.WriteLine("Sensor connected");
+        int gatewayPort=5000;
 
-            HandleSensor(sensorClient);
-        }
-    }
+        Console.WriteLine("Connecting to server...");
 
-    static void HandleSensor(TcpClient sensorClient)
-    {
-        NetworkStream sensorStream = sensorClient.GetStream();
-        byte[] buffer = new byte[1024];
-        int bytesRead;
-
-        while ((bytesRead = sensorStream.Read(buffer, 0, buffer.Length)) != 0)
-        {
-            string message = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-            Console.WriteLine("Sensor sent: " + message);
-
-            SendToServer(message);
-        }
-
-        sensorClient.Close();
-    }
-
-    static void SendToServer(string message)
-    {
-        TcpClient serverClient = new TcpClient("127.0.0.1", 6000);
+        serverClient=new TcpClient(serverIP, serverPort);
 
         NetworkStream serverStream = serverClient.GetStream();
 
-        byte[] data = Encoding.UTF8.GetBytes(message);
+        serverWriter=new StreamWriter(serverStream);
 
-        serverStream.Write(data, 0, data.Length);
+        serverWriter.AutoFlush=true;
 
-        serverClient.Close();
+        Console.WriteLine("Connected to server.");
+
+        TcpListener sensorListener=new TcpListener(IPAddress.Any, gatewayPort);
+
+        sensorListener.Start();
+
+        Console.WriteLine("Gateway listening for sensors...");
+
+        while (true)
+        {
+            TcpClient sensorClient=sensorListener.AcceptTcpClient();
+
+            Console.WriteLine("Sensor connected.");
+
+            Thread sensorThread=new Thread(HandleSensor);
+
+            sensorThread.Start(sensorClient);
+        }
+    }
+
+    static void HandleSensor(object obj)
+    {
+        TcpClient sensorClient=(TcpClient)obj;
+
+        NetworkStream stream=sensorClient.GetStream();
+
+        StreamReader reader=new StreamReader(stream);
+
+        string sensorID="UNKNOWN";
+
+        try
+        {
+            while (true)
+            {
+                string message=reader.ReadLine();
+
+                if (message == null)
+                {
+                    break;
+                }
+                Console.WriteLine("Sensor message:" + message);
+
+                string[] parts = message.Split(' ');
+
+                if (parts[0] == "HELLO")
+                {
+                    sensorID=parts[1];
+
+                    Console.WriteLine("Sensor identified: " + sensorID);
+                }
+
+                else if (parts[0] == "DATA")
+                {
+                    string type=parts[1];
+                    string value=parts[2];
+
+                    string serverMessage= $"SENSOR_DATA {sensorID} {type} {value}";
+
+                    lock (lockObject)
+                    {
+                        serverWriter.WriteLine(serverMessage);
+                    }
+                    Console.WriteLine("Forwarded to server: " + serverMessage);
+                }
+
+                else if (parts[0]=="DISCONNECT")
+                {
+                    Console.WriteLine("Sensor disconnected: " + sensorID);
+                    break;    
+                }
+            }
+        }
+
+        catch (Exception)
+        {
+            Console.WriteLine("Sensor connection lost.");
+        }
+        reader.Close();
+        sensorClient.Close();
     }
 }

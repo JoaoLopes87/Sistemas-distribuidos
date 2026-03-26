@@ -7,6 +7,7 @@ C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servi
 C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servidor.AssemblyInfoInputs.cache
 C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servidor.AssemblyInfo.cs
 C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servidor.csproj.CoreCompileInputs.cache
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servidor.sourcelink.json
 C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servidor.dll
 C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\refint\Servidor.dll
 C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Servidor\obj\Debug\net9.0\Servidor.pdb

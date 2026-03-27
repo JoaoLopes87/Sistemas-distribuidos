@@ -12,3 +12,4 @@ C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Gateway\obj\Debug\net9.0\refint
 C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Gateway\obj\Debug\net9.0\Gateway.pdb
 C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Gateway\obj\Debug\net9.0\Gateway.genruntimeconfig.cache
 C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Gateway\obj\Debug\net9.0\ref\Gateway.dll
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Gateway\obj\Debug\net9.0\Gateway.sourcelink.json

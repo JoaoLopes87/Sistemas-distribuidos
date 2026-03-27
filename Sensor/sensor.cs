@@ -1,67 +1,65 @@
 using System;
 using System.Net.Sockets;
-using System.Text;
+using System.IO;
 
 class Sensor
 {
     static void Main()
     {
-        Console.Write("Sensor ID: ");
-        string sensorID = Console.ReadLine();
+        string gatewayIP="127.0.0.1";
+        int gatewayPort=5000;
 
-        TcpClient client = new TcpClient("127.0.0.1", 5000);
+        Console.Write("Enter sensor ID: ");
+        string sensorID=Console.ReadLine();
 
-        NetworkStream stream = client.GetStream();
+        Console.WriteLine("Connecting to gateway...");
 
-        Send(stream, "CONNECT|" + sensorID);
+        TcpClient client=new TcpClient(gatewayIP, gatewayPort);
+        NetworkStream stream=client.GetStream();
+        StreamWriter writer=new StreamWriter(stream);
+        writer.AutoFlush=true;
+        Console.WriteLine("Connected to gateway.");
 
-        while (true)
+        writer.WriteLine($"HELLO {sensorID}");
+
+        bool running=true;
+
+        while (running)
         {
-            Console.WriteLine("\n1 - Send temperature");
-            Console.WriteLine("2 - Send noise");
-            Console.WriteLine("3 - Exit");
+            Console.WriteLine();
 
-            string option = Console.ReadLine();
+            Console.WriteLine("1 - Send Temperature");
+            Console.WriteLine("2 - Send Humidity");
+            Console.WriteLine("3 - Disconnect");
 
-            if (option == "1")
+            Console.Write("Choice: ");
+
+            string choice=Console.ReadLine();
+
+            if (choice == "1")
             {
-                Console.Write("Temperature: ");
-                string value = Console.ReadLine();
+                Console.Write("Temperature value: ");
+                string temp=Console.ReadLine();
 
-                string message = "DATA|" +
-                DateTime.Now.ToString("s") +
-                "|" + sensorID +
-                "|SCHOOL_ZONE|TEMP|" + value;
-
-                Send(stream, message);
+                writer.WriteLine($"DATA TEMP {temp}");
             }
-
-            else if (option == "2")
+            else if (choice == "2")
             {
-                Console.Write("Noise: ");
-                string value = Console.ReadLine();
+                Console.Write("Humidity value: ");
+                string hum = Console.ReadLine();
 
-                string message = "DATA|" +
-                DateTime.Now.ToString("s") +
-                "|" + sensorID +
-                "|SCHOOL_ZONE|NOISE|" + value;
-
-                Send(stream, message);
+                writer.WriteLine($"DATA HUM {hum}");
             }
-
-            else if (option == "3")
+            else if (choice == "3")
             {
-                Send(stream, "DISCONNECT|" + sensorID);
-                break;
+                writer.WriteLine("DISCONNECT");
+
+                running = false;
             }
         }
 
         client.Close();
-    }
 
-    static void Send(NetworkStream stream, string message)
-    {
-        byte[] data = Encoding.UTF8.GetBytes(message);
-        stream.Write(data, 0, data.Length);
+        Console.WriteLine("Sensor disconnected.");
     }
 }

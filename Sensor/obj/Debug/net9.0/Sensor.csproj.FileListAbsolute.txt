@@ -12,3 +12,4 @@ C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Sensor\obj\Debug\net9.0\refint\
 C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Sensor\obj\Debug\net9.0\Sensor.pdb
 C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Sensor\obj\Debug\net9.0\Sensor.genruntimeconfig.cache
 C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Sensor\obj\Debug\net9.0\ref\Sensor.dll
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\trabalho\Sensor\obj\Debug\net9.0\Sensor.sourcelink.json

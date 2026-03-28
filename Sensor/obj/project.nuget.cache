@@ -1,8 +1,12 @@
 {
   "version": 2,
-  "dgSpecHash": "X914eFrxOhk=",
+  "dgSpecHash": "g/34UuJgBq4=",
   "success": true,
-  "projectFilePath": "C:\\Users\\OMEN\\Documents\\UNIVERSIDADE\\SD\\trabalho\\Sensor\\Sensor.csproj",
-  "expectedPackageFiles": [],
+  "projectFilePath": "/Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Sensor/Sensor.csproj",
+  "expectedPackageFiles": [
+    "/Users/minijotinha/.nuget/packages/microsoft.netcore.app.ref/9.0.14/microsoft.netcore.app.ref.9.0.14.nupkg.sha512",
+    "/Users/minijotinha/.nuget/packages/microsoft.aspnetcore.app.ref/9.0.14/microsoft.aspnetcore.app.ref.9.0.14.nupkg.sha512",
+    "/Users/minijotinha/.nuget/packages/microsoft.netcore.app.host.osx-arm64/9.0.14/microsoft.netcore.app.host.osx-arm64.9.0.14.nupkg.sha512"
+  ],
   "logs": []
 }

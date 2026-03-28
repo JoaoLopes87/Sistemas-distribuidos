@@ -18,7 +18,7 @@ class Gateway
 
         int serverPort=6000;
 
-        int gatewayPort=5000;
+        int gatewayPort=5001;
 
         Console.WriteLine("Connecting to server...");
 

@@ -7,7 +7,7 @@ class Sensor
     static void Main()
     {
         string gatewayIP="127.0.0.1";
-        int gatewayPort=5000;
+        int gatewayPort=5001;
 
         Console.Write("Enter sensor ID: ");
         string sensorID=Console.ReadLine();

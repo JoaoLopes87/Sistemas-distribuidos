@@ -3,17 +3,36 @@ using System.Net;
 using System.Net.Sockets;
 using System.IO;
 using System.Threading;
+using System.Diagnostics.Tracing;
 
 class Gateway
 {
+    static string[] lines = File.ReadAllLines("sensors_.csv");
+
     static TcpClient serverClient;
 
     static StreamWriter serverWriter;
+
+    static Dictionary<string,SensorInfo> sensores = new Dictionary<string, SensorInfo>();
 
     static object lockObject=new object();
     
     static void Main()
     {
+
+        foreach (string line in lines)
+        {
+            string[] keywords = line.Split('|');
+
+            string id = keywords[0];
+            string estado = keywords[1];
+            string zona = keywords[2];
+            string[] tipos = keywords[3].Split(',');
+
+            sensores.Add(id, new SensorInfo(estado,zona,tipos));
+
+        }
+
         string serverIP="127.0.0.1";
 
         int serverPort=6000;
@@ -59,6 +78,11 @@ class Gateway
         StreamReader reader=new StreamReader(stream);
 
         string sensorID="UNKNOWN";
+
+        foreach (string line in lines)
+        {
+            string[] keywords = line.Split('|');
+        }
 
         try
         {

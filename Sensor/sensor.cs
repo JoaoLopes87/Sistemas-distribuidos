@@ -30,7 +30,8 @@ class Sensor
 
             Console.WriteLine("1 - Send Temperature");
             Console.WriteLine("2 - Send Humidity");
-            Console.WriteLine("3 - Disconnect");
+            Console.WriteLine("3 - Send Types"); 
+            Console.WriteLine("4 - Disconnect");
 
             Console.Write("Choice: ");
 
@@ -41,16 +42,28 @@ class Sensor
                 Console.Write("Temperature value: ");
                 string temp=Console.ReadLine();
 
-                writer.WriteLine($"DATA TEMP {temp}");
+                writer.WriteLine($"DATA TEMP | {temp}");
             }
             else if (choice == "2")
             {
                 Console.Write("Humidity value: ");
                 string hum = Console.ReadLine();
 
-                writer.WriteLine($"DATA HUM {hum}");
+                writer.WriteLine($"DATA HUM | {hum}");
             }
             else if (choice == "3")
+            {
+                Console.WriteLine("Temperature value and pm value");
+                string types = Console.ReadLine();
+                string[] parts = types.Split(' ');
+                string result = " ";
+                foreach (string part in parts)
+                {
+                    result += part + " | ";
+                }
+                writer.WriteLine($"TYPES | {result}");
+            }
+            else if (choice == "4")
             {
                 writer.WriteLine("DISCONNECT");
 

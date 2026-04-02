@@ -13,7 +13,7 @@ class Server
         server.Start();
 
         Console.Write("Server started...");
-        Console.Write("Wainting for connections...");
+        Console.WriteLine("Wainting for connections...");
 
         while (true)
         {

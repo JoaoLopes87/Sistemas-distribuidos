@@ -61,7 +61,7 @@ class Sensor
                 {
                     result += part + " | ";
                 }
-                writer.WriteLine($"TYPES | {result}");
+                writer.WriteLine($"TYPES |{result}");
             }
             else if (choice == "4")
             {

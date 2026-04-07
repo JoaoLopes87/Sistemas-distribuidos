@@ -1,59 +1,39 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.IO;
 using System.Threading;
-using System.Diagnostics.Tracing;
-using System.Runtime.CompilerServices;
 
 class Gateway
 {
-    static string[] lines = File.ReadAllLines("sensors_.csv");
-
     static TcpClient serverClient;
-
     static StreamWriter serverWriter;
+    static StreamReader serverReader;
 
-    static Dictionary<string,SensorInfo> sensores = new Dictionary<string, SensorInfo>();
+    static Dictionary<string, SensorInfo> sensores = new Dictionary<string, SensorInfo>();
 
-    static object lockObject=new object();
-    
+    static object lockObject = new object();
+
     static void Main()
     {
+        LoadSensorsFromCsv("sensors_.csv");
 
-        foreach (string line in lines)
-        {
-            string[] keywords = line.Split(':');
-
-            string id = keywords[0];
-            string estado = keywords[1];
-            string zona = keywords[2];
-            string sensores_new = keywords[3].Trim('[', ']');
-            string[] tipos = sensores_new.Split(',');
-
-            sensores.Add(id, new SensorInfo(estado,zona,tipos));
-
-        }
-
-        string serverIP="127.0.0.1";
-
-        int serverPort=6000;
-
-        int gatewayPort=5001;
+        string serverIP = "127.0.0.1";
+        int serverPort = 6000;
+        int gatewayPort = 5001;
 
         Console.WriteLine("Connecting to server...");
 
-        serverClient=new TcpClient(serverIP, serverPort);
-
+        serverClient = new TcpClient(serverIP, serverPort);
         NetworkStream serverStream = serverClient.GetStream();
-
-        serverWriter=new StreamWriter(serverStream);
-
-        serverWriter.AutoFlush=true;
+        serverReader = new StreamReader(serverStream);
+        serverWriter = new StreamWriter(serverStream) { AutoFlush = true };
 
         Console.WriteLine("Connected to server.");
 
-        TcpListener sensorListener=new TcpListener(IPAddress.Any, gatewayPort);
+        TcpListener sensorListener = new TcpListener(IPAddress.Any, gatewayPort);
 
         sensorListener.Start();
 
@@ -61,139 +41,299 @@ class Gateway
 
         while (true)
         {
-            TcpClient sensorClient=sensorListener.AcceptTcpClient();
+            TcpClient sensorClient = sensorListener.AcceptTcpClient();
 
             Console.WriteLine("Sensor connected.");
 
-            Thread sensorThread=new Thread(HandleSensor); 
+            Thread sensorThread = new Thread(HandleSensor);
+            sensorThread.IsBackground = true;
 
             sensorThread.Start(sensorClient);
         }
     }
 
+    static void LoadSensorsFromCsv(string filePath)
+    {
+        string[] lines = File.ReadAllLines(filePath);
+
+        foreach (string line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            string[] parts = line.Split(':');
+            if (parts.Length < 5)
+            {
+                Console.WriteLine("Invalid CSV line: " + line);
+                continue;
+            }
+
+            string id = parts[0].Trim();
+            string estado = parts[1].Trim();
+            string zona = parts[2].Trim();
+            string tiposRaw = parts[3].Trim().Trim('[', ']');
+            string[] tipos = tiposRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            string lastSync = parts[4].Trim();
+
+            sensores[id] = new SensorInfo(estado, zona, tipos, lastSync);
+        }
+
+        Console.WriteLine("Loaded sensors from CSV: " + sensores.Count);
+    }
+
     static void HandleSensor(object obj)
     {
-        TcpClient sensorClient=(TcpClient)obj;
+        TcpClient sensorClient = (TcpClient)obj;
+        NetworkStream stream = sensorClient.GetStream();
+        StreamReader reader = new StreamReader(stream);
+        StreamWriter writer = new StreamWriter(stream) { AutoFlush = true };
 
-        NetworkStream stream=sensorClient.GetStream();
-
-        StreamReader reader=new StreamReader(stream);
-
-        string sensorID="UNKNOWN";
+        string sensorID = "UNKNOWN";
         bool valido = false;
+        bool tiposValidados = false;
 
         try
         {
             while (true)
             {
-                string message=reader.ReadLine();
-
-                bool encontrado = false;
+                string message = reader.ReadLine();
 
                 if (message == null)
                 {
                     break;
                 }
-                Console.WriteLine("Sensor message:" + message);
 
-                string[] parts = message.Split(' ');
+                Console.WriteLine("SENSOR -> GATEWAY: " + message);
+                string[] parts = message.Split('|', StringSplitOptions.TrimEntries);
 
-                if (parts[0] == "HELLO")
+                if (parts.Length == 0)
                 {
-
-                    foreach(KeyValuePair<string,SensorInfo> item in sensores)
-                    {
-                        if (item.Key == parts[1])
-                        {
-                            sensorID = parts[1];
-                            encontrado = true;
-                            string estado = item.Value.Estado;
-
-                            if (estado == "ativo")
-                            {
-                                Console.WriteLine("Sensor Valido!");
-                                valido=true;
-                            }
-
-                            else if (estado== "manutenção")
-                            {
-                                Console.WriteLine("Sensor em manutenção!");
-                            }
-                        }
-                    }
-
-                    if (encontrado==true)
-                    {
-                        Console.WriteLine("Sensor identified: " + sensorID);
-                        
-                    } 
-
-                    else {
-                        Console.WriteLine("Sensor is not defined!");
-                    }
+                    SendSensorResponse(writer, "ERROR | Empty message");
+                    continue;
                 }
 
-                else if (parts[0] == "TYPES")
+                string command = parts[0].Trim();
+
+                if (command == "HELLO")
                 {
-                    string[] tps = parts[2].Split(',');
-                    Console.WriteLine(tps);
-
-                    if (!sensores.ContainsKey(sensorID))
+                    if (parts.Length < 2)
                     {
-                        Console.WriteLine("Sensor não identificado!");
+                        SendSensorResponse(writer, "ERROR | Missing sensor_id");
                         continue;
                     }
 
-                    if (!valido)
+                    string requestedSensorId = parts[1].Trim();
+
+                    if (!sensores.ContainsKey(requestedSensorId))
                     {
-                        Console.WriteLine("Sensor não validado!");
+                        SendSensorResponse(writer, "ERROR | Unknown sensor");
                         continue;
                     }
-                    
-                    var sensor = sensores[sensorID];
-                    bool tipoValido = true;
 
-                    foreach (string t in tps)
+                    SensorInfo info = sensores[requestedSensorId];
+                    if (info.Estado != "ativo")
                     {
-                        if (!sensor.Tipos.Contains(t))
+                        SendSensorResponse(writer, "ERROR | Sensor not active");
+                        continue;
+                    }
+
+                    sensorID = requestedSensorId;
+                    valido = true;
+                    tiposValidados = false;
+                    SendSensorResponse(writer, "OK");
+                    continue;
+                }
+
+                if (!valido || !sensores.ContainsKey(sensorID))
+                {
+                    SendSensorResponse(writer, "ERROR | Sensor not validated");
+                    continue;
+                }
+
+                if (command == "TYPES")
+                {
+                    if (parts.Length < 2)
+                    {
+                        SendSensorResponse(writer, "ERROR | Missing types");
+                        continue;
+                    }
+
+                    string[] requestedTypes = parts[1]
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                    SensorInfo info = sensores[sensorID];
+                    bool allTypesValid = true;
+
+                    foreach (string t in requestedTypes)
+                    {
+                        if (Array.IndexOf(info.Tipos, t) < 0)
                         {
-                            Console.WriteLine("Tipo não corresponde");
-                            tipoValido=false;
+                            allTypesValid = false;
+                            break;
                         }
                     }
-                    if (tipoValido)
+
+                    if (!allTypesValid)
                     {
-                        Console.WriteLine($"Tipos Validados {parts[2]}");
-                    }
+                        SendSensorResponse(writer, "ERROR | Unsupported type");
+                        continue;
                     }
 
-                else if (parts[0] == "DATA")
+                    tiposValidados = true;
+                    SendSensorResponse(writer, "OK");
+                }
+
+                else if (command == "DATA")
                 {
-                    string type=parts[1];
-                    string value=parts[2];
+                    if (parts.Length < 5)
+                    {
+                        SendSensorResponse(writer, "ERROR | DATA format invalid");
+                        continue;
+                    }
 
-                    string serverMessage= $"SENSOR_DATA {sensorID} {type} {value}";
+                    if (!tiposValidados)
+                    {
+                        SendSensorResponse(writer, "ERROR | TYPES not registered");
+                        continue;
+                    }
+
+                    string dataSensorId = parts[1].Trim();
+                    string type = parts[2].Trim();
+                    string value = parts[3].Trim();
+                    string timestamp = parts[4].Trim();
+
+                    if (dataSensorId != sensorID)
+                    {
+                        SendSensorResponse(writer, "ERROR | Sensor ID mismatch");
+                        continue;
+                    }
+
+                    SensorInfo info = sensores[sensorID];
+                    if (Array.IndexOf(info.Tipos, type) < 0)
+                    {
+                        SendSensorResponse(writer, "ERROR | Unsupported type");
+                        continue;
+                    }
+
+                    if (!DateTime.TryParseExact(
+                            timestamp,
+                            "yyyy-MM-ddTHH:mm:ss",
+                            CultureInfo.InvariantCulture,
+                            DateTimeStyles.None,
+                            out _))
+                    {
+                        SendSensorResponse(writer, "ERROR | Invalid timestamp");
+                        continue;
+                    }
+
+                    string serverMessage = $"STORE | {sensorID} | {info.Zona} | {type} | {value} | {timestamp}";
 
                     lock (lockObject)
                     {
                         serverWriter.WriteLine(serverMessage);
+                        string serverResponse = serverReader.ReadLine() ?? "";
+
+                        Console.WriteLine("GATEWAY -> SERVER: " + serverMessage);
+                        Console.WriteLine("SERVER -> GATEWAY: " + serverResponse);
+
+                        if (serverResponse != "STORED")
+                        {
+                            SendSensorResponse(writer, "ERROR | Server did not store data");
+                            continue;
+                        }
                     }
-                    Console.WriteLine("Forwarded to server: " + serverMessage);
+
+                    lock (lockObject)
+                    {
+                        info.LastSync = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+                    }
+
+                    SendSensorResponse(writer, "ACK");
                 }
 
-                else if (parts[0]=="DISCONNECT")
+                else if (command == "VIDEO_REQUEST")
                 {
+                    if (parts.Length < 2)
+                    {
+                        SendSensorResponse(writer, "ERROR | Missing sensor_id");
+                        continue;
+                    }
+
+                    string requestSensorId = parts[1].Trim();
+                    if (requestSensorId != sensorID)
+                    {
+                        SendSensorResponse(writer, "ERROR | Sensor ID mismatch");
+                        continue;
+                    }
+
+                    SendSensorResponse(writer, "ACK");
+                }
+
+                else if (command == "HEARTBEAT")
+                {
+                    if (parts.Length < 2)
+                    {
+                        SendSensorResponse(writer, "ERROR | Missing sensor_id");
+                        continue;
+                    }
+
+                    string heartbeatSensorId = parts[1].Trim();
+                    if (heartbeatSensorId != sensorID)
+                    {
+                        SendSensorResponse(writer, "ERROR | Sensor ID mismatch");
+                        continue;
+                    }
+
+                    lock (lockObject)
+                    {
+                        sensores[sensorID].LastSync = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+                    }
+
+                    SendSensorResponse(writer, "ALIVE");
+                }
+
+                else if (command == "DISCONNECT")
+                {
+                    if (parts.Length < 2)
+                    {
+                        SendSensorResponse(writer, "ERROR | Missing sensor_id");
+                        continue;
+                    }
+
+                    string disconnectSensorId = parts[1].Trim();
+                    if (disconnectSensorId != sensorID)
+                    {
+                        SendSensorResponse(writer, "ERROR | Sensor ID mismatch");
+                        continue;
+                    }
+
+                    SendSensorResponse(writer, "BYE");
                     Console.WriteLine("Sensor disconnected: " + sensorID);
-                    break;    
+                    break;
+                }
+
+                else
+                {
+                    SendSensorResponse(writer, "ERROR | Unknown command");
                 }
             }
         }
 
-        catch (Exception)
+        catch (Exception ex)
         {
-            Console.WriteLine("Sensor connection lost.");
+            Console.WriteLine("Sensor connection lost: " + ex.Message);
         }
+
         reader.Close();
+        writer.Close();
         sensorClient.Close();
+    }
+
+    static void SendSensorResponse(StreamWriter writer, string response)
+    {
+        writer.WriteLine(response);
+        Console.WriteLine("GATEWAY -> SENSOR: " + response);
     }
 }

@@ -1,78 +1,119 @@
 using System;
-using System.Net.Sockets;
 using System.IO;
+using System.Net.Sockets;
 
 class Sensor
 {
     static void Main()
     {
-        string gatewayIP="127.0.0.1";
-        int gatewayPort=5001;
+        string gatewayIP = "127.0.0.1";
+        int gatewayPort = 5001;
 
         Console.Write("Enter sensor ID: ");
-        string sensorID=Console.ReadLine();
+        string sensorID = Console.ReadLine() ?? "unknown";
 
         Console.WriteLine("Connecting to gateway...");
 
-        TcpClient client=new TcpClient(gatewayIP, gatewayPort);
-        NetworkStream stream=client.GetStream();
-        StreamWriter writer=new StreamWriter(stream);
-        writer.AutoFlush=true;
+        using TcpClient client = new TcpClient(gatewayIP, gatewayPort);
+        using NetworkStream stream = client.GetStream();
+        using StreamReader reader = new StreamReader(stream);
+        using StreamWriter writer = new StreamWriter(stream) { AutoFlush = true };
+
         Console.WriteLine("Connected to gateway.");
 
-        writer.WriteLine($"HELLO {sensorID}");
+        // 1) Startup handshake
+        SendMessage(writer, $"HELLO | {sensorID}");
+        string helloResponse = ReadGatewayResponse(reader);
+        if (helloResponse != "OK")
+        {
+            Console.WriteLine("Gateway rejected HELLO. Closing sensor.");
+            return;
+        }
 
-        bool running=true;
+        // 2) Register supported types at startup
+        RegisterTypes(writer, reader);
+
+        bool running = true;
 
         while (running)
         {
             Console.WriteLine();
-
             Console.WriteLine("1 - Send Temperature");
             Console.WriteLine("2 - Send Humidity");
-            Console.WriteLine("3 - Send Types"); 
-            Console.WriteLine("4 - Disconnect");
-
+            Console.WriteLine("3 - Register Types");
+            Console.WriteLine("4 - Send Heartbeat");
+            Console.WriteLine("5 - Request Video Stream");
+            Console.WriteLine("6 - Disconnect");
             Console.Write("Choice: ");
 
-            string choice=Console.ReadLine();
+            string choice = Console.ReadLine() ?? "";
 
-            if (choice == "1")
+            switch (choice)
             {
-                Console.Write("Temperature value: ");
-                string temp=Console.ReadLine();
+                case "1":
+                    Console.Write("Temperature value: ");
+                    string tempValue = Console.ReadLine() ?? "0";
+                    SendData(writer, reader, sensorID, "TEMP", tempValue);
+                    break;
 
-                writer.WriteLine($"DATA TEMP | {temp}");
-            }
-            else if (choice == "2")
-            {
-                Console.Write("Humidity value: ");
-                string hum = Console.ReadLine();
+                case "2":
+                    Console.Write("Humidity value: ");
+                    string humValue = Console.ReadLine() ?? "0";
+                    SendData(writer, reader, sensorID, "HUM", humValue);
+                    break;
 
-                writer.WriteLine($"DATA HUM | {hum}");
-            }
-            else if (choice == "3")
-            {
-                Console.WriteLine("Temperature value and pm value");
-                string types = Console.ReadLine();
-                string[] parts = types.Split(' ');
-                string result = " ";
-                foreach (string part in parts)
-                {
-                    result += part + " | ";
-                }
-                writer.WriteLine($"TYPES |{result}");
-            }
-            else if (choice == "4")
-            {
-                writer.WriteLine("DISCONNECT");
+                case "3":
+                    RegisterTypes(writer, reader);
+                    break;
 
-                running = false;
+                case "4":
+                    SendMessage(writer, $"HEARTBEAT | {sensorID}");
+                    ReadGatewayResponse(reader);
+                    break;
+
+                case "5":
+                    SendMessage(writer, $"VIDEO_REQUEST | {sensorID}");
+                    ReadGatewayResponse(reader);
+                    break;
+
+                case "6":
+                    SendMessage(writer, $"DISCONNECT | {sensorID}");
+                    ReadGatewayResponse(reader);
+                    running = false;
+                    break;
+
+                default:
+                    Console.WriteLine("Invalid option.");
+                    break;
             }
         }
 
-        client.Close();
-
         Console.WriteLine("Sensor disconnected.");
+    }
+
+    static void RegisterTypes(StreamWriter writer, StreamReader reader)
+    {
+        SendMessage(writer, "TYPES | TEMP,HUM,RUIDO");
+        ReadGatewayResponse(reader);
+    }
+
+    static void SendData(StreamWriter writer, StreamReader reader, string sensorID, string type, string value)
+    {
+        string timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+        SendMessage(writer, $"DATA | {sensorID} | {type} | {value} | {timestamp}");
+        ReadGatewayResponse(reader);
+    }
+
+    static void SendMessage(StreamWriter writer, string message)
+    {
+        Console.WriteLine($"SENSOR -> GATEWAY: {message}");
+        writer.WriteLine(message);
+    }
+
+    static string ReadGatewayResponse(StreamReader reader)
+    {
+        string response = reader.ReadLine() ?? "";
+        Console.WriteLine($"GATEWAY -> SENSOR: {response}");
+        return response;
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Net;
@@ -16,9 +17,48 @@ class Gateway
 
     static object lockObject = new object();
 
+
+    static void MonitorSensors()
+    {
+        while (true)
+        {
+            bool changed = false;
+            lock (lockObject)
+            {
+                foreach (var sensor in sensores)
+                {
+                    var v = sensor.Value;
+
+                    if (DateTime.TryParse(v.LastSync, out DateTime last))
+                    {
+                        if ((DateTime.Now - last).TotalSeconds > 30)
+                        {
+                            if (v.Estado != "inativo")
+                            {
+                                v.Estado = "inativo";
+                                Console.WriteLine($"Sensor {sensor.Key} marcado como INATIVO");
+                                changed=true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            Thread.Sleep(60000);
+
+            if (changed) {
+                lock (lockObject) {
+                WriteSensorsCsv("sensors_.csv");
+                }
+            }
+        }
+    }
+
     static void Main()
     {
         LoadSensorsFromCsv("sensors_.csv");
+
+         new Thread(MonitorSensors) { IsBackground = true }.Start();
 
         string serverIP = "127.0.0.1";
         int serverPort = 6000;
@@ -50,6 +90,24 @@ class Gateway
 
             sensorThread.Start(sensorClient);
         }
+    }
+
+    static void WriteSensorsCsv(string filePath)
+    {
+        var lines = new List<string>();
+
+        foreach ( KeyValuePair<string, SensorInfo> sensor in sensores)
+        {
+            string id = sensor.Key;
+
+            SensorInfo values = sensor.Value; 
+
+            string line = $"{id}:{values.Estado}:{values.Zona}:[{string.Join(",",values.Tipos)}]:{values.LastSync}";
+            lines.Add(line);
+        }
+
+        File.WriteAllLines(filePath,lines);
+
     }
 
     static void LoadSensorsFromCsv(string filePath)
@@ -228,6 +286,12 @@ class Gateway
                         continue;
                     }
 
+                    if (!PData(type, value, out string erroPreProcessamento))
+                    {
+                        SendSensorResponse(writer, $"ERROR | {erroPreProcessamento}");
+                        continue;
+                    }
+
                     string serverMessage = $"STORE | {sensorID} | {info.Zona} | {type} | {value} | {timestamp}";
 
                     lock (lockObject)
@@ -289,6 +353,7 @@ class Gateway
                     lock (lockObject)
                     {
                         sensores[sensorID].LastSync = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+                        sensores[sensorID].Estado = "ativo";
                     }
 
                     SendSensorResponse(writer, "ALIVE");
@@ -320,6 +385,7 @@ class Gateway
                 }
             }
         }
+        
 
         catch (Exception ex)
         {
@@ -336,4 +402,34 @@ class Gateway
         writer.WriteLine(response);
         Console.WriteLine("GATEWAY -> SENSOR: " + response);
     }
+    static bool PData(string type, string value, out string erro)
+{
+    erro = "";
+
+    if (!double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out double val))
+    {
+        erro = "Value is not numeric";
+        return false;
+    }
+
+    (double min, double max) = type switch
+    {
+        "TEMP"  => (-50.0, 100.0),
+        "HUM"   => (0.0, 100.0),
+        "RUIDO" => (0.0, 200.0),
+        "PM2.5" => (0.0, 1000.0),
+        "PM10"  => (0.0, 1000.0),
+        "AR"    => (0.0, 500.0),
+        "LUM"   => (0.0, 100000.0),
+        _       => (double.MinValue, double.MaxValue)
+    };
+
+    if (val < min || val > max)
+    {
+        erro = $"Value {val} out of range for type {type}";
+        return false;
+    }
+
+    return true;
+}
 }

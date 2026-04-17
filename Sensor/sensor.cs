@@ -4,6 +4,8 @@ using System.Net.Sockets;
 
 class Sensor
 {
+    static object sensorLock = new object();
+
     static void Main()
     {
         string gatewayIP = "127.0.0.1";
@@ -21,7 +23,6 @@ class Sensor
 
         Console.WriteLine("Connected to gateway.");
 
-        // 1) Startup handshake
         SendMessage(writer, $"HELLO | {sensorID}");
         string helloResponse = ReadGatewayResponse(reader);
         if (helloResponse != "OK")
@@ -30,8 +31,25 @@ class Sensor
             return;
         }
 
-        // 2) Register supported types at startup
+
         RegisterTypes(writer, reader);
+
+        
+
+        Thread heartbeatT = new Thread(() =>
+        {
+            while (true)
+            {
+                Thread.Sleep(30000);
+                lock(sensorLock){
+                SendMessage(writer, $"HEARTBEAT | {sensorID}");
+                ReadGatewayResponse(reader);
+                }
+            }
+        });
+
+        heartbeatT.IsBackground = true;
+        heartbeatT.Start();
 
         bool running = true;
 
@@ -40,8 +58,8 @@ class Sensor
             Console.WriteLine();
             Console.WriteLine("1 - Send Temperature");
             Console.WriteLine("2 - Send Humidity");
-            Console.WriteLine("3 - Register Types");
-            Console.WriteLine("4 - Send Heartbeat");
+            Console.WriteLine("3 - Send Noise");
+            Console.WriteLine("4 - Register Types");
             Console.WriteLine("5 - Request Video Stream");
             Console.WriteLine("6 - Disconnect");
             Console.Write("Choice: ");
@@ -53,34 +71,49 @@ class Sensor
                 case "1":
                     Console.Write("Temperature value: ");
                     string tempValue = Console.ReadLine() ?? "0";
+                    lock (sensorLock){
                     SendData(writer, reader, sensorID, "TEMP", tempValue);
+                    }
                     break;
 
                 case "2":
                     Console.Write("Humidity value: ");
                     string humValue = Console.ReadLine() ?? "0";
+                    lock (sensorLock){
                     SendData(writer, reader, sensorID, "HUM", humValue);
+                    }
                     break;
+
+                    
 
                 case "3":
-                    RegisterTypes(writer, reader);
-                    break;
+                    Console.Write("Noise value (dB): ");
+                    string ruidoValue = Console.ReadLine() ?? "0";
+                    lock (sensorLock){
+                        SendData(writer, reader, sensorID, "RUIDO", ruidoValue);
+                    }
+                        break;
 
                 case "4":
-                    SendMessage(writer, $"HEARTBEAT | {sensorID}");
-                    ReadGatewayResponse(reader);
-                    break;
+                    lock (sensorLock){
+                        RegisterTypes(writer, reader);
+                        }
+                        break;
 
                 case "5":
-                    SendMessage(writer, $"VIDEO_REQUEST | {sensorID}");
-                    ReadGatewayResponse(reader);
-                    break;
+                        lock (sensorLock){
+                            SendMessage(writer, $"VIDEO_REQUEST | {sensorID}");
+                            ReadGatewayResponse(reader);
+                        }
+                        break;
 
-                case "6":
-                    SendMessage(writer, $"DISCONNECT | {sensorID}");
-                    ReadGatewayResponse(reader);
-                    running = false;
-                    break;
+                    case "6":
+                        lock (sensorLock){
+                            SendMessage(writer, $"DISCONNECT | {sensorID}");
+                            ReadGatewayResponse(reader);
+                            running = false;
+                        }
+                        break;
 
                 default:
                     Console.WriteLine("Invalid option.");

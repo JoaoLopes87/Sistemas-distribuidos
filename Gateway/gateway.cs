@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Net;
@@ -17,6 +16,7 @@ class Gateway
 
     static object lockObject = new object();
 
+    static Mutex mtx = new Mutex();
 
     static void MonitorSensors()
     {
@@ -37,7 +37,7 @@ class Gateway
                             {
                                 v.Estado = "inativo";
                                 Console.WriteLine($"Sensor {sensor.Key} marcado como INATIVO");
-                                changed=true;
+                                changed = true;
                             }
                         }
                     }
@@ -46,9 +46,11 @@ class Gateway
 
             Thread.Sleep(60000);
 
-            if (changed) {
-                lock (lockObject) {
-                WriteSensorsCsv("sensors_.csv");
+            if (changed)
+            {
+                lock (lockObject)
+                {
+                    WriteSensorsCsv("sensors_.csv");
                 }
             }
         }
@@ -58,7 +60,7 @@ class Gateway
     {
         LoadSensorsFromCsv("sensors_.csv");
 
-         new Thread(MonitorSensors) { IsBackground = true }.Start();
+        new Thread(MonitorSensors) { IsBackground = true }.Start();
 
         string serverIP = "127.0.0.1";
         int serverPort = 6000;
@@ -96,18 +98,15 @@ class Gateway
     {
         var lines = new List<string>();
 
-        foreach ( KeyValuePair<string, SensorInfo> sensor in sensores)
+        foreach (KeyValuePair<string, SensorInfo> sensor in sensores)
         {
             string id = sensor.Key;
-
-            SensorInfo values = sensor.Value; 
-
-            string line = $"{id}:{values.Estado}:{values.Zona}:[{string.Join(",",values.Tipos)}]:{values.LastSync}";
+            SensorInfo values = sensor.Value;
+            string line = $"{id}:{values.Estado}:{values.Zona}:[{string.Join(",", values.Tipos)}]:{values.LastSync}";
             lines.Add(line);
         }
 
-        File.WriteAllLines(filePath,lines);
-
+        File.WriteAllLines(filePath, lines);
     }
 
     static void LoadSensorsFromCsv(string filePath)
@@ -117,9 +116,7 @@ class Gateway
         foreach (string line in lines)
         {
             if (string.IsNullOrWhiteSpace(line))
-            {
                 continue;
-            }
 
             string[] parts = line.Split(':');
             if (parts.Length < 5)
@@ -159,9 +156,7 @@ class Gateway
                 string message = reader.ReadLine();
 
                 if (message == null)
-                {
                     break;
-                }
 
                 Console.WriteLine("SENSOR -> GATEWAY: " + message);
                 string[] parts = message.Split('|', StringSplitOptions.TrimEntries);
@@ -200,7 +195,10 @@ class Gateway
                     sensorID = requestedSensorId;
                     valido = true;
                     tiposValidados = false;
-                    SendSensorResponse(writer, "OK");
+
+                    // Envia os tipos permitidos na resposta
+                    string tiposPermitidos = string.Join(",", info.Tipos);
+                    SendSensorResponse(writer, $"OK | {tiposPermitidos}");
                     continue;
                 }
 
@@ -212,13 +210,20 @@ class Gateway
 
                 if (command == "TYPES")
                 {
-                    if (parts.Length < 2)
+                    if (parts.Length < 3)
                     {
                         SendSensorResponse(writer, "ERROR | Missing types");
                         continue;
                     }
 
-                    string[] requestedTypes = parts[1]
+                    string typesSensorId = parts[1].Trim();
+                    if (typesSensorId != sensorID)
+                    {
+                        SendSensorResponse(writer, "ERROR | Sensor ID mismatch");
+                        continue;
+                    }
+
+                    string[] requestedTypes = parts[2]
                         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
                     SensorInfo info = sensores[sensorID];
@@ -286,7 +291,7 @@ class Gateway
                         continue;
                     }
 
-                    if (!PData(type, value, out string erroPreProcessamento))
+                    if (!PreProcessar(type, value, out string erroPreProcessamento))
                     {
                         SendSensorResponse(writer, $"ERROR | {erroPreProcessamento}");
                         continue;
@@ -385,8 +390,6 @@ class Gateway
                 }
             }
         }
-        
-
         catch (Exception ex)
         {
             Console.WriteLine("Sensor connection lost: " + ex.Message);
@@ -402,34 +405,35 @@ class Gateway
         writer.WriteLine(response);
         Console.WriteLine("GATEWAY -> SENSOR: " + response);
     }
-    static bool PData(string type, string value, out string erro)
-{
-    erro = "";
 
-    if (!double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out double val))
+    static bool PreProcessar(string type, string value, out string erro)
     {
-        erro = "Value is not numeric";
-        return false;
+        erro = "";
+
+        if (!double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out double val))
+        {
+            erro = "Value is not numeric";
+            return false;
+        }
+
+        (double min, double max) = type switch
+        {
+            "TEMP"  => (-50.0, 100.0),
+            "HUM"   => (0.0, 100.0),
+            "RUIDO" => (0.0, 200.0),
+            "PM2.5" => (0.0, 1000.0),
+            "PM10"  => (0.0, 1000.0),
+            "AR"    => (0.0, 500.0),
+            "LUM"   => (0.0, 100000.0),
+            _       => (double.MinValue, double.MaxValue)
+        };
+
+        if (val < min || val > max)
+        {
+            erro = $"Value {val} out of range for type {type}";
+            return false;
+        }
+
+        return true;
     }
-
-    (double min, double max) = type switch
-    {
-        "TEMP"  => (-50.0, 100.0),
-        "HUM"   => (0.0, 100.0),
-        "RUIDO" => (0.0, 200.0),
-        "PM2.5" => (0.0, 1000.0),
-        "PM10"  => (0.0, 1000.0),
-        "AR"    => (0.0, 500.0),
-        "LUM"   => (0.0, 100000.0),
-        _       => (double.MinValue, double.MaxValue)
-    };
-
-    if (val < min || val > max)
-    {
-        erro = $"Value {val} out of range for type {type}";
-        return false;
-    }
-
-    return true;
-}
 }

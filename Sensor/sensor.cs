@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Net.Sockets;
+using System.Threading;
 
 class Sensor
 {
@@ -23,31 +24,36 @@ class Sensor
 
         Console.WriteLine("Connected to gateway.");
 
+        // HELLO
         SendMessage(writer, $"HELLO | {sensorID}");
         string helloResponse = ReadGatewayResponse(reader);
-        if (helloResponse != "OK")
+        if (!helloResponse.StartsWith("OK"))
         {
             Console.WriteLine("Gateway rejected HELLO. Closing sensor.");
             return;
         }
 
+        // Extrai os tipos permitidos da resposta "OK | TEMP,HUM,RUIDO"
+        string[] tiposPermitidos = Array.Empty<string>();
+        string[] helloParts = helloResponse.Split('|', StringSplitOptions.TrimEntries);
+        if (helloParts.Length > 1)
+            tiposPermitidos = helloParts[1].Split(',', StringSplitOptions.TrimEntries);
 
-        RegisterTypes(writer, reader);
+        RegisterTypes(writer, reader, sensorID, tiposPermitidos);
 
-        
-
+        // Heartbeat
         Thread heartbeatT = new Thread(() =>
         {
             while (true)
             {
                 Thread.Sleep(30000);
-                lock(sensorLock){
-                SendMessage(writer, $"HEARTBEAT | {sensorID}");
-                ReadGatewayResponse(reader);
+                lock (sensorLock)
+                {
+                    SendMessage(writer, $"HEARTBEAT | {sensorID}");
+                    ReadGatewayResponse(reader);
                 }
             }
         });
-
         heartbeatT.IsBackground = true;
         heartbeatT.Start();
 
@@ -59,9 +65,12 @@ class Sensor
             Console.WriteLine("1 - Send Temperature");
             Console.WriteLine("2 - Send Humidity");
             Console.WriteLine("3 - Send Noise");
-            Console.WriteLine("4 - Register Types");
-            Console.WriteLine("5 - Request Video Stream");
-            Console.WriteLine("6 - Disconnect");
+            Console.WriteLine("4 - Send PM2.5");
+            Console.WriteLine("5 - Send PM10");
+            Console.WriteLine("6 - Send Luminosity");
+            Console.WriteLine("7 - Register Types");
+            Console.WriteLine("8 - Request Video Stream");
+            Console.WriteLine("9 - Disconnect");
             Console.Write("Choice: ");
 
             string choice = Console.ReadLine() ?? "";
@@ -71,49 +80,80 @@ class Sensor
                 case "1":
                     Console.Write("Temperature value: ");
                     string tempValue = Console.ReadLine() ?? "0";
-                    lock (sensorLock){
-                    SendData(writer, reader, sensorID, "TEMP", tempValue);
+                    lock (sensorLock)
+                    {
+                        SendData(writer, reader, sensorID, "TEMP", tempValue);
                     }
                     break;
 
                 case "2":
                     Console.Write("Humidity value: ");
                     string humValue = Console.ReadLine() ?? "0";
-                    lock (sensorLock){
-                    SendData(writer, reader, sensorID, "HUM", humValue);
+                    lock (sensorLock)
+                    {
+                        SendData(writer, reader, sensorID, "HUM", humValue);
                     }
                     break;
-
-                    
 
                 case "3":
                     Console.Write("Noise value (dB): ");
                     string ruidoValue = Console.ReadLine() ?? "0";
-                    lock (sensorLock){
+                    lock (sensorLock)
+                    {
                         SendData(writer, reader, sensorID, "RUIDO", ruidoValue);
                     }
-                        break;
+                    break;
 
                 case "4":
-                    lock (sensorLock){
-                        RegisterTypes(writer, reader);
-                        }
-                        break;
+                    Console.Write("PM2.5 value: ");
+                    string pmValue = Console.ReadLine() ?? "0";
+                    lock (sensorLock)
+                    {
+                        SendData(writer, reader, sensorID, "PM2.5", pmValue);
+                    }
+                    break;
 
                 case "5":
-                        lock (sensorLock){
-                            SendMessage(writer, $"VIDEO_REQUEST | {sensorID}");
-                            ReadGatewayResponse(reader);
-                        }
-                        break;
+                    Console.Write("PM10 value: ");
+                    string pmValue2 = Console.ReadLine() ?? "0";
+                    lock (sensorLock)
+                    {
+                        SendData(writer, reader, sensorID, "PM10", pmValue2);
+                    }
+                    break;
 
-                    case "6":
-                        lock (sensorLock){
-                            SendMessage(writer, $"DISCONNECT | {sensorID}");
-                            ReadGatewayResponse(reader);
-                            running = false;
-                        }
-                        break;
+                case "6":
+                    Console.Write("Luminosity value: ");
+                    string lumValue = Console.ReadLine() ?? "0";
+                    lock (sensorLock)
+                    {
+                        SendData(writer, reader, sensorID, "LUM", lumValue);
+                    }
+                    break;
+
+                case "7":
+                    lock (sensorLock)
+                    {
+                        RegisterTypes(writer, reader, sensorID, tiposPermitidos);
+                    }
+                    break;
+
+                case "8":
+                    lock (sensorLock)
+                    {
+                        SendMessage(writer, $"VIDEO_REQUEST | {sensorID}");
+                        ReadGatewayResponse(reader);
+                    }
+                    break;
+
+                case "9":
+                    lock (sensorLock)
+                    {
+                        SendMessage(writer, $"DISCONNECT | {sensorID}");
+                        ReadGatewayResponse(reader);
+                        running = false;
+                    }
+                    break;
 
                 default:
                     Console.WriteLine("Invalid option.");
@@ -124,10 +164,13 @@ class Sensor
         Console.WriteLine("Sensor disconnected.");
     }
 
-    static void RegisterTypes(StreamWriter writer, StreamReader reader)
+    static void RegisterTypes(StreamWriter writer, StreamReader reader, string sensorID, string[] tipos)
     {
-        SendMessage(writer, "TYPES | TEMP,HUM,RUIDO");
-        ReadGatewayResponse(reader);
+        string tiposStr = string.Join(",", tipos);
+        SendMessage(writer, $"TYPES | {sensorID} | {tiposStr}");
+        string response = ReadGatewayResponse(reader);
+        if (response != "OK")
+            Console.WriteLine($"TYPES rejected: {response}");
     }
 
     static void SendData(StreamWriter writer, StreamReader reader, string sensorID, string type, string value)

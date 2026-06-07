@@ -36,3 +36,12 @@ C:/Users/OMEN/Documents/UNIVERSIDADE/SD/trabalho/Gateway/obj/Debug/net9.0/Gatewa
 /Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Gateway/bin/Debug/net9.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll
 /Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Gateway/bin/Debug/net9.0/Microsoft.Extensions.Logging.Abstractions.dll
 /Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Gateway/obj/Debug/net9.0/Gateway.csproj.Up2Date
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\projeto2\Sistemas-distribuidos\Gateway\obj\Debug\net9.0\Gateway.csproj.AssemblyReference.cache
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\projeto2\Sistemas-distribuidos\Gateway\obj\Debug\net9.0\Gateway.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\projeto2\Sistemas-distribuidos\Gateway\obj\Debug\net9.0\Gateway.AssemblyInfoInputs.cache
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\projeto2\Sistemas-distribuidos\Gateway\obj\Debug\net9.0\Gateway.AssemblyInfo.cs
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\projeto2\Sistemas-distribuidos\Gateway\obj\Debug\net9.0\Gateway.csproj.CoreCompileInputs.cache
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\projeto2\Sistemas-distribuidos\Gateway\obj\Debug\net9.0\Gateway.sourcelink.json
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\projeto2\Sistemas-distribuidos\Gateway\obj\Debug\net9.0\Gateway.dll
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\projeto2\Sistemas-distribuidos\Gateway\obj\Debug\net9.0\refint\Gateway.dll
+C:\Users\OMEN\Documents\UNIVERSIDADE\SD\projeto2\Sistemas-distribuidos\Gateway\obj\Debug\net9.0\Gateway.pdb

@@ -75,12 +75,10 @@ public class PreProcessamentoServiceImpl
                 Erro     = $"Value {val} out of range for type {type}"
             });
 
-        double normalizado = (val - min) / (max - min);
-
         return Task.FromResult(new ValorResponse
         {
             Valido   = true,
-            NewValue = normalizado.ToString(),
+            NewValue = val.ToString(CultureInfo.InvariantCulture),
             Erro     = ""
         });
     }

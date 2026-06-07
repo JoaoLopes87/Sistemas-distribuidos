@@ -3,17 +3,22 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using Microsoft.Data.Sqlite;
+using Grpc.Net.Client;
+using AnalisePrevGrpc;
 
 class Server
 {
     static readonly object dbLock = new object();
     static readonly string connectionString = "Data Source=sensors.db;";
+    static AnalisePrevService.AnalisePrevServiceClient? analysisClient;
 
     static void Main()
     {
         try
         {
             InitDatabase();
+            InitAnalysisClient();
+            StartCommandLoop();
 
             int port = 6000;
             TcpListener server = new TcpListener(IPAddress.Any, port);
@@ -53,8 +58,25 @@ class Server
                     timestamp TEXT NOT NULL
                 );";
 
+            string createAnalysisTable = @"
+                CREATE TABLE IF NOT EXISTS analysis_results (
+                    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sensor_id          TEXT NOT NULL,
+                    zone               TEXT NOT NULL,
+                    type               TEXT NOT NULL,
+                    value              TEXT NOT NULL,
+                    timestamp          TEXT NOT NULL,
+                    nivel              TEXT NOT NULL,
+                    mensagem           TEXT,
+                    erro               TEXT,
+                    analysis_timestamp TEXT NOT NULL
+                );";
+
             using var cmd = new SqliteCommand(createTable, connection);
             cmd.ExecuteNonQuery();
+
+            using var cmdAnalysis = new SqliteCommand(createAnalysisTable, connection);
+            cmdAnalysis.ExecuteNonQuery();
 
             Console.WriteLine("Database initialized.");
         }
@@ -65,9 +87,251 @@ class Server
         }
     }
 
-    static void HandleClient(object obj)
+    static void InitAnalysisClient()
     {
-        TcpClient client = (TcpClient)obj;
+        try
+        {
+            var channel = GrpcChannel.ForAddress("http://localhost:5166");
+            analysisClient = new AnalisePrevService.AnalisePrevServiceClient(channel);
+            Console.WriteLine("Analysis RPC client initialized.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to initialize analysis client: {ex.Message}");
+            throw;
+        }
+    }
+
+    static void StartCommandLoop()
+    {
+        Thread commandThread = new Thread(CommandLoop);
+        commandThread.IsBackground = true;
+        commandThread.Start();
+    }
+
+    static void CommandLoop()
+    {
+        PrintHelp();
+
+        while (true)
+        {
+            Console.Write("SERVER> ");
+            string? command = Console.ReadLine();
+            if (command == null)
+                continue;
+
+            command = command.Trim();
+            if (string.IsNullOrEmpty(command))
+                continue;
+
+            if (command.Equals("help", StringComparison.OrdinalIgnoreCase))
+            {
+                PrintHelp();
+            }
+            else if (command.Equals("measurements", StringComparison.OrdinalIgnoreCase))
+            {
+                ListMeasurements();
+            }
+            else if (command.Equals("analyses", StringComparison.OrdinalIgnoreCase))
+            {
+                ListAnalyses();
+            }
+            else if (command.StartsWith("query sensor ", StringComparison.OrdinalIgnoreCase))
+            {
+                string sensorId = command.Substring(13).Trim();
+                QueryMeasurements("sensor_id", sensorId);
+            }
+            else if (command.StartsWith("query zone ", StringComparison.OrdinalIgnoreCase))
+            {
+                string zone = command.Substring(11).Trim();
+                QueryMeasurements("zone", zone);
+            }
+            else if (command.Equals("analyze", StringComparison.OrdinalIgnoreCase))
+            {
+                PerformManualAnalysis();
+            }
+            else
+            {
+                Console.WriteLine("Unknown command. Type 'help' for available commands.");
+            }
+        }
+    }
+
+    static void PrintHelp()
+    {
+        Console.WriteLine("Available server commands:");
+        Console.WriteLine("  help               - Show this help message");
+        Console.WriteLine("  measurements       - List recently stored measurements");
+        Console.WriteLine("  analyses           - List recent analysis results");
+        Console.WriteLine("  query sensor <id>  - Query stored measurements for a sensor");
+        Console.WriteLine("  query zone <zone>  - Query stored measurements for a zone");
+        Console.WriteLine("  analyze            - Trigger a manual analysis request");
+    }
+
+    static void ListMeasurements()
+    {
+        lock (dbLock)
+        {
+            using var connection = new SqliteConnection(connectionString);
+            connection.Open();
+
+            string query = @"SELECT id, sensor_id, zone, type, value, timestamp FROM measurements ORDER BY id DESC LIMIT 50;";
+            using var cmd = new SqliteCommand(query, connection);
+            using var reader = cmd.ExecuteReader();
+
+            while (reader.Read())
+            {
+                Console.WriteLine($"[{reader.GetInt64(0)}] {reader.GetString(1)} | {reader.GetString(2)} | {reader.GetString(3)} | {reader.GetString(4)} | {reader.GetString(5)}");
+            }
+        }
+    }
+
+    static void ListAnalyses()
+    {
+        lock (dbLock)
+        {
+            using var connection = new SqliteConnection(connectionString);
+            connection.Open();
+
+            string query = @"SELECT id, sensor_id, zone, type, value, nivel, mensagem, erro, analysis_timestamp FROM analysis_results ORDER BY id DESC LIMIT 50;";
+            using var cmd = new SqliteCommand(query, connection);
+            using var reader = cmd.ExecuteReader();
+
+            while (reader.Read())
+            {
+                Console.WriteLine($"[{reader.GetInt64(0)}] {reader.GetString(1)} | {reader.GetString(2)} | {reader.GetString(3)} | {reader.GetString(4)} | nivel={reader.GetString(5)} | msg={reader.GetString(6)} | erro={reader.GetString(7)} | {reader.GetString(8)}");
+            }
+        }
+    }
+
+    static void QueryMeasurements(string column, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            Console.WriteLine("Query value cannot be empty.");
+            return;
+        }
+
+        lock (dbLock)
+        {
+            using var connection = new SqliteConnection(connectionString);
+            connection.Open();
+
+            string query = $@"SELECT id, sensor_id, zone, type, value, timestamp FROM measurements WHERE {column} = @value ORDER BY id DESC LIMIT 50;";
+            using var cmd = new SqliteCommand(query, connection);
+            cmd.Parameters.AddWithValue("@value", value);
+            using var reader = cmd.ExecuteReader();
+
+            while (reader.Read())
+            {
+                Console.WriteLine($"[{reader.GetInt64(0)}] {reader.GetString(1)} | {reader.GetString(2)} | {reader.GetString(3)} | {reader.GetString(4)} | {reader.GetString(5)}");
+            }
+        }
+    }
+
+    static void PerformManualAnalysis()
+    {
+        Console.Write("Sensor ID: ");
+        string sensorId = Console.ReadLine()?.Trim() ?? string.Empty;
+        Console.Write("Zone: ");
+        string zone = Console.ReadLine()?.Trim() ?? string.Empty;
+        Console.Write("Type: ");
+        string type = Console.ReadLine()?.Trim() ?? string.Empty;
+        Console.Write("Value: ");
+        string value = Console.ReadLine()?.Trim() ?? string.Empty;
+        Console.Write("Timestamp (yyyy-MM-ddTHH:mm:ss): ");
+        string timestamp = Console.ReadLine()?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(sensorId) || string.IsNullOrWhiteSpace(zone) || string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(value) || string.IsNullOrWhiteSpace(timestamp))
+        {
+            Console.WriteLine("All fields are required to run a manual analysis.");
+            return;
+        }
+
+        bool stored = StoreMeasurement(sensorId, zone, type, value, timestamp);
+        if (stored)
+        {
+            Console.WriteLine("Measurement stored. Running analysis...");
+            AnalyzeMeasurement(sensorId, zone, type, value, timestamp);
+        }
+        else
+        {
+            Console.WriteLine("Failed to store measurement for manual analysis.");
+        }
+    }
+
+    static void AnalyzeMeasurement(string sensorId, string zone, string type, string value, string timestamp)
+    {
+        if (analysisClient == null)
+        {
+            Console.WriteLine("Analysis client is not initialized.");
+            StoreAnalysisResult(sensorId, zone, type, value, timestamp, "ERROR", string.Empty, "Analysis client not initialized");
+            return;
+        }
+
+        try
+        {
+            var response = analysisClient.Analisar(new AnalisarRequest
+            {
+                Type = type,
+                Value = value,
+                Zona = zone
+            });
+
+            string nivel = response.Valido ? response.Nivel : "ERROR";
+            string mensagem = response.Valido ? response.Mensagem : string.Empty;
+            string erro = response.Valido ? string.Empty : response.Erro;
+
+            StoreAnalysisResult(sensorId, zone, type, value, timestamp, nivel, mensagem, erro);
+            Console.WriteLine($"Analysis result for {sensorId}: {nivel} - {mensagem}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Analysis RPC error: " + ex.Message);
+            StoreAnalysisResult(sensorId, zone, type, value, timestamp, "ERROR", string.Empty, ex.Message);
+        }
+    }
+
+    static void StoreAnalysisResult(string sensorId, string zone, string type, string value, string timestamp, string nivel, string mensagem, string erro)
+    {
+        try
+        {
+            lock (dbLock)
+            {
+                using var connection = new SqliteConnection(connectionString);
+                connection.Open();
+
+                string insert = @"
+                    INSERT INTO analysis_results (sensor_id, zone, type, value, timestamp, nivel, mensagem, erro, analysis_timestamp)
+                    VALUES (@sensorId, @zone, @type, @value, @timestamp, @nivel, @mensagem, @erro, @analysisTimestamp);";
+
+                using var cmd = new SqliteCommand(insert, connection);
+                cmd.Parameters.AddWithValue("@sensorId", sensorId);
+                cmd.Parameters.AddWithValue("@zone", zone);
+                cmd.Parameters.AddWithValue("@type", type);
+                cmd.Parameters.AddWithValue("@value", value);
+                cmd.Parameters.AddWithValue("@timestamp", timestamp);
+                cmd.Parameters.AddWithValue("@nivel", nivel);
+                cmd.Parameters.AddWithValue("@mensagem", mensagem);
+                cmd.Parameters.AddWithValue("@erro", erro);
+                cmd.Parameters.AddWithValue("@analysisTimestamp", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
+
+                cmd.ExecuteNonQuery();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Failed to store analysis result: " + ex.Message);
+        }
+    }
+
+    static void HandleClient(object? obj)
+    {
+        if (obj is not TcpClient client)
+        {
+            return;
+        }
+
         NetworkStream stream = client.GetStream();
         stream.ReadTimeout = 30000; 
         stream.WriteTimeout = 30000;
@@ -79,7 +343,7 @@ class Server
         {
             while (true)
             {
-                string message = reader.ReadLine();
+                string? message = reader.ReadLine();
                 if (message == null)
                     break;
 
@@ -126,6 +390,7 @@ class Server
                     {
                         writer.WriteLine("STORED");
                         Console.WriteLine("SERVER -> GATEWAY: STORED");
+                        AnalyzeMeasurement(sensorId, zone, type, value, timestamp);
                     }
                     else
                     {

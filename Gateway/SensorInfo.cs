@@ -1,9 +1,9 @@
-class SensorInfo
+public class SensorInfo
 {
-    public string Estado = "";
-    public string Zona = "";
-    public string[] Tipos = [];
-    public string LastSync = "";
+    public string Estado { get; set; }
+    public string Zona { get; set; }
+    public string[] Tipos { get; set; }
+    public string LastSync { get; set; }
 
     public SensorInfo(string estado, string zona, string[] tipos, string lastSync)
     {

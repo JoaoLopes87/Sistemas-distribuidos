@@ -80,7 +80,7 @@ public class PreProcessamentoServiceImpl
         return Task.FromResult(new ValorResponse
         {
             Valido   = true,
-            NewValue = normalizado.ToString(),
+            NewValue = normalizado.ToString(CultureInfo.InvariantCulture),
             Erro     = ""
         });
     }

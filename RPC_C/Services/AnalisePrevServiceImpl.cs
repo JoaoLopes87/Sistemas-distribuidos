@@ -27,23 +27,20 @@ public class AnalisePrevServiceImpl : AnalisePrevService.AnalisePrevServiceBase
             _       => (double.MaxValue, double.MaxValue)
         };
 
-        string nivel, mensagem;
+        string nivel;
 
         if (val >= critico)
-        {
-            nivel    = "CRITICO";
-            mensagem = $"[{request.Zona}] {request.Type} em nível crítico: {val}";
-        }
+            nivel = "CRITICO";
         else if (val >= aviso)
-        {
-            nivel    = "AVISO";
-            mensagem = $"[{request.Zona}] {request.Type} em nível de aviso: {val}";
-        }
+            nivel = "AVISO";
         else
-        {
-            nivel    = "NORMAL";
-            mensagem = $"[{request.Zona}] {request.Type} em nível normal: {val}";
-        }
+            nivel = "NORMAL";
+
+        string stats = "";
+        if (!string.IsNullOrEmpty(request.Min) && !string.IsNullOrEmpty(request.Max) && !string.IsNullOrEmpty(request.Media))
+            stats = $" | Min={request.Min} Max={request.Max} Média={request.Media}";
+
+        string mensagem = $"[{request.Zona}] {request.Type} {nivel}: {val}{stats}";
 
         return Task.FromResult(new AnalisarResponse
         {
@@ -72,6 +69,47 @@ public class AnalisePrevServiceImpl : AnalisePrevService.AnalisePrevServiceBase
             mensagem = $"[{request.Zona}] Qualidade do ar normal: PM2.5={pm25} PM10={pm10} AR={ar}";
 
         return Task.FromResult(new PolResponse { Mensagem = mensagem });
+    }
+
+    public override Task<RiscoResponse> PrevRisco(RiscoRequest request, ServerCallContext context)
+    {
+        bool temTemp = !string.IsNullOrEmpty(request.Temp);
+        bool temHum  = !string.IsNullOrEmpty(request.Hum);
+        bool temPm25 = !string.IsNullOrEmpty(request.Pm25);
+        bool temAr   = !string.IsNullOrEmpty(request.Ar);
+
+        string mensagem;
+
+        if (temTemp && temHum)
+        {
+            double temp = ParseOrZero(request.Temp);
+            double hum  = ParseOrZero(request.Hum);
+
+            if (temp >= 40 && hum >= 70)
+                mensagem = $"[{request.Zona}] Risco ALTO de stress térmico: TEMP={temp} HUM={hum}";
+            else if (temp >= 30 && hum >= 60)
+                mensagem = $"[{request.Zona}] Risco MEDIO de stress térmico: TEMP={temp} HUM={hum}";
+            else
+                mensagem = $"[{request.Zona}] Risco BAIXO de stress térmico: TEMP={temp} HUM={hum}";
+        }
+        else if (temPm25 && temAr)
+        {
+            double pm25 = ParseOrZero(request.Pm25);
+            double ar   = ParseOrZero(request.Ar);
+
+            if (pm25 > 75 && ar > 200)
+                mensagem = $"[{request.Zona}] Risco ALTO respiratório: PM2.5={pm25} AR={ar}";
+            else if (pm25 > 35 || ar > 100)
+                mensagem = $"[{request.Zona}] Risco MEDIO respiratório: PM2.5={pm25} AR={ar}";
+            else
+                mensagem = $"[{request.Zona}] Risco BAIXO respiratório: PM2.5={pm25} AR={ar}";
+        }
+        else
+        {
+            mensagem = $"[{request.Zona}] Dados insuficientes para previsão de risco";
+        }
+
+        return Task.FromResult(new RiscoResponse { Mensagem = mensagem });
     }
 
     static double ParseOrZero(string s)

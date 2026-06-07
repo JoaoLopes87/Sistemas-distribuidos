@@ -24,23 +24,24 @@ namespace AnalisePrevGrpc {
     static AnalisePrevReflection() {
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
-            "ChlQcm90b3MvYW5hbGlzZV9wcmV2LnByb3RvIjwKD0FuYWxpc2FyUmVxdWVz",
-            "dBIMCgR0eXBlGAEgASgJEg0KBXZhbHVlGAIgASgJEgwKBHpvbmEYAyABKAki",
-            "UQoQQW5hbGlzYXJSZXNwb25zZRIOCgZ2YWxpZG8YASABKAgSDQoFbml2ZWwY",
-            "AiABKAkSEAoIbWVuc2FnZW0YAyABKAkSDAoEZXJybxgEIAEoCSJCCgpQb2xS",
-            "ZXF1ZXN0EgwKBHpvbmEYASABKAkSDAoEcG0yNRgCIAEoCRIMCgRwbTEwGAMg",
-            "ASgJEgoKAmFyGAQgASgJIh8KC1BvbFJlc3BvbnNlEhAKCG1lbnNhZ2VtGAEg",
-            "ASgJIlEKDFJpc2NvUmVxdWVzdBIMCgR6b25hGAEgASgJEgwKBHRlbXAYAiAB",
-            "KAkSCwoDaHVtGAMgASgJEgwKBHBtMjUYBCABKAkSCgoCYXIYBSABKAkiIQoN",
-            "UmlzY29SZXNwb25zZRIQCghtZW5zYWdlbRgBIAEoCTKaAQoSQW5hbGlzZVBy",
-            "ZXZTZXJ2aWNlEi8KCEFuYWxpc2FyEhAuQW5hbGlzYXJSZXF1ZXN0GhEuQW5h",
-            "bGlzYXJSZXNwb25zZRInCgpEZXRldGFyUG9sEgsuUG9sUmVxdWVzdBoMLlBv",
-            "bFJlc3BvbnNlEioKCVByZXZSaXNjbxINLlJpc2NvUmVxdWVzdBoOLlJpc2Nv",
-            "UmVzcG9uc2VCEqoCD0FuYWxpc2VQcmV2R3JwY2IGcHJvdG8z"));
+            "ChlQcm90b3MvYW5hbGlzZV9wcmV2LnByb3RvImUKD0FuYWxpc2FyUmVxdWVz",
+            "dBIMCgR0eXBlGAEgASgJEg0KBXZhbHVlGAIgASgJEgwKBHpvbmEYAyABKAkS",
+            "CwoDbWluGAQgASgJEgsKA21heBgFIAEoCRINCgVtZWRpYRgGIAEoCSJRChBB",
+            "bmFsaXNhclJlc3BvbnNlEg4KBnZhbGlkbxgBIAEoCBINCgVuaXZlbBgCIAEo",
+            "CRIQCghtZW5zYWdlbRgDIAEoCRIMCgRlcnJvGAQgASgJIkIKClBvbFJlcXVl",
+            "c3QSDAoEem9uYRgBIAEoCRIMCgRwbTI1GAIgASgJEgwKBHBtMTAYAyABKAkS",
+            "CgoCYXIYBCABKAkiHwoLUG9sUmVzcG9uc2USEAoIbWVuc2FnZW0YASABKAki",
+            "UQoMUmlzY29SZXF1ZXN0EgwKBHpvbmEYASABKAkSDAoEdGVtcBgCIAEoCRIL",
+            "CgNodW0YAyABKAkSDAoEcG0yNRgEIAEoCRIKCgJhchgFIAEoCSIhCg1SaXNj",
+            "b1Jlc3BvbnNlEhAKCG1lbnNhZ2VtGAEgASgJMpoBChJBbmFsaXNlUHJldlNl",
+            "cnZpY2USLwoIQW5hbGlzYXISEC5BbmFsaXNhclJlcXVlc3QaES5BbmFsaXNh",
+            "clJlc3BvbnNlEicKCkRldGV0YXJQb2wSCy5Qb2xSZXF1ZXN0GgwuUG9sUmVz",
+            "cG9uc2USKgoJUHJldlJpc2NvEg0uUmlzY29SZXF1ZXN0Gg4uUmlzY29SZXNw",
+            "b25zZUISqgIPQW5hbGlzZVByZXZHcnBjYgZwcm90bzM="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
-            new pbr::GeneratedClrTypeInfo(typeof(global::AnalisePrevGrpc.AnalisarRequest), global::AnalisePrevGrpc.AnalisarRequest.Parser, new[]{ "Type", "Value", "Zona" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::AnalisePrevGrpc.AnalisarRequest), global::AnalisePrevGrpc.AnalisarRequest.Parser, new[]{ "Type", "Value", "Zona", "Min", "Max", "Media" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::AnalisePrevGrpc.AnalisarResponse), global::AnalisePrevGrpc.AnalisarResponse.Parser, new[]{ "Valido", "Nivel", "Mensagem", "Erro" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::AnalisePrevGrpc.PolRequest), global::AnalisePrevGrpc.PolRequest.Parser, new[]{ "Zona", "Pm25", "Pm10", "Ar" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::AnalisePrevGrpc.PolResponse), global::AnalisePrevGrpc.PolResponse.Parser, new[]{ "Mensagem" }, null, null, null, null),
@@ -90,6 +91,9 @@ namespace AnalisePrevGrpc {
       type_ = other.type_;
       value_ = other.value_;
       zona_ = other.zona_;
+      min_ = other.min_;
+      max_ = other.max_;
+      media_ = other.media_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -135,6 +139,42 @@ namespace AnalisePrevGrpc {
       }
     }
 
+    /// <summary>Field number for the "min" field.</summary>
+    public const int MinFieldNumber = 4;
+    private string min_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Min {
+      get { return min_; }
+      set {
+        min_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "max" field.</summary>
+    public const int MaxFieldNumber = 5;
+    private string max_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Max {
+      get { return max_; }
+      set {
+        max_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "media" field.</summary>
+    public const int MediaFieldNumber = 6;
+    private string media_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Media {
+      get { return media_; }
+      set {
+        media_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -153,6 +193,9 @@ namespace AnalisePrevGrpc {
       if (Type != other.Type) return false;
       if (Value != other.Value) return false;
       if (Zona != other.Zona) return false;
+      if (Min != other.Min) return false;
+      if (Max != other.Max) return false;
+      if (Media != other.Media) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -163,6 +206,9 @@ namespace AnalisePrevGrpc {
       if (Type.Length != 0) hash ^= Type.GetHashCode();
       if (Value.Length != 0) hash ^= Value.GetHashCode();
       if (Zona.Length != 0) hash ^= Zona.GetHashCode();
+      if (Min.Length != 0) hash ^= Min.GetHashCode();
+      if (Max.Length != 0) hash ^= Max.GetHashCode();
+      if (Media.Length != 0) hash ^= Media.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -193,6 +239,18 @@ namespace AnalisePrevGrpc {
         output.WriteRawTag(26);
         output.WriteString(Zona);
       }
+      if (Min.Length != 0) {
+        output.WriteRawTag(34);
+        output.WriteString(Min);
+      }
+      if (Max.Length != 0) {
+        output.WriteRawTag(42);
+        output.WriteString(Max);
+      }
+      if (Media.Length != 0) {
+        output.WriteRawTag(50);
+        output.WriteString(Media);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -215,6 +273,18 @@ namespace AnalisePrevGrpc {
         output.WriteRawTag(26);
         output.WriteString(Zona);
       }
+      if (Min.Length != 0) {
+        output.WriteRawTag(34);
+        output.WriteString(Min);
+      }
+      if (Max.Length != 0) {
+        output.WriteRawTag(42);
+        output.WriteString(Max);
+      }
+      if (Media.Length != 0) {
+        output.WriteRawTag(50);
+        output.WriteString(Media);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -233,6 +303,15 @@ namespace AnalisePrevGrpc {
       }
       if (Zona.Length != 0) {
         size += 1 + pb::CodedOutputStream.ComputeStringSize(Zona);
+      }
+      if (Min.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Min);
+      }
+      if (Max.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Max);
+      }
+      if (Media.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Media);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -254,6 +333,15 @@ namespace AnalisePrevGrpc {
       }
       if (other.Zona.Length != 0) {
         Zona = other.Zona;
+      }
+      if (other.Min.Length != 0) {
+        Min = other.Min;
+      }
+      if (other.Max.Length != 0) {
+        Max = other.Max;
+      }
+      if (other.Media.Length != 0) {
+        Media = other.Media;
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -286,6 +374,18 @@ namespace AnalisePrevGrpc {
             Zona = input.ReadString();
             break;
           }
+          case 34: {
+            Min = input.ReadString();
+            break;
+          }
+          case 42: {
+            Max = input.ReadString();
+            break;
+          }
+          case 50: {
+            Media = input.ReadString();
+            break;
+          }
         }
       }
     #endif
@@ -315,6 +415,18 @@ namespace AnalisePrevGrpc {
           }
           case 26: {
             Zona = input.ReadString();
+            break;
+          }
+          case 34: {
+            Min = input.ReadString();
+            break;
+          }
+          case 42: {
+            Max = input.ReadString();
+            break;
+          }
+          case 50: {
+            Media = input.ReadString();
             break;
           }
         }

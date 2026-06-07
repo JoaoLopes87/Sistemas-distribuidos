@@ -19,9 +19,6 @@ message AnalisarRequest {
     string type  = 1;
     string value = 2;
     string zona  = 3;
-    string min   = 4;
-    string max   = 5;
-    string media = 6;
 }
 
 message AnalisarResponse {

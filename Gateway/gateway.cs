@@ -286,60 +286,36 @@ class Gateway
                         continue;
                     }
 
-                    var request = new TimestampRequest
+                    TimestampResponse response;
+                    EscalaResponse responseEscala;
+                    ValorResponse responseValor;
+
+                    try
                     {
-                        Timestamp = timestamp
-                    };
+                        response = grpcClient.ValidarTimestamp(new TimestampRequest { Timestamp = timestamp });
 
-                    var response = grpcClient.ValidarTimestamp(request);
+                        responseEscala = grpcClient.ConverterEscala(new EscalaRequest { Type = type, Value = value });
+                        if (!responseEscala.Valido)
+                        {
+                            SendSensorResponse(writer, $"ERROR | {responseEscala.Erro}");
+                            continue;
+                        }
 
-              //      if (!DateTime.TryParseExact(
-              //              timestamp,
-              //              "yyyy-MM-ddTHH:mm:ss",
-              //              CultureInfo.InvariantCulture,
-              //              DateTimeStyles.None,
-              //              out _))
-              //      {
-              //          SendSensorResponse(writer, "ERROR | Invalid timestamp");
-              //          continue;
-              //      }
-
-                    var requestEscala = new EscalaRequest
+                        responseValor = grpcClient.NormalizarValor(new ValorRequest { Type = type, Value = responseEscala.NewValue.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+                        if (!responseValor.Valido)
+                        {
+                            SendSensorResponse(writer, $"ERROR | {responseValor.Erro}");
+                            continue;
+                        }
+                    }
+                    catch (Exception grpcEx)
                     {
-                        Type = type,
-                        Value = value
-                    }; 
-
-                    var responseEscala = grpcClient.ConverterEscala(requestEscala);
-
-                    if (!responseEscala.Valido)
-                    {
-                        SendSensorResponse(writer, $"ERROR | {responseEscala.Erro}");
+                        Console.WriteLine("gRPC error: " + grpcEx.Message);
+                        SendSensorResponse(writer, "ERROR | Pre-processing service unavailable");
                         continue;
                     }
 
-                    string valorFinal = responseEscala.NewValue.ToString();
-
-                    var requestValor = new ValorRequest
-                    {
-                        Type = type,
-                        Value = valorFinal
-                    };
-
-                    var responseValor = grpcClient.NormalizarValor(requestValor);
-
-                    if (!responseValor.Valido)
-                    {
-                        SendSensorResponse(writer, $"ERROR | {responseValor.Erro}");
-                        continue;
-                    }
-
-                   // if (!PreProcessar(type, valorFinal, out string erroPreProcessamento))
-                    //{
-                    //    SendSensorResponse(writer, $"ERROR | {erroPreProcessamento}");
-                    //    continue;
-                   // }
-
+                    string valorFinal = responseEscala.NewValue.ToString(System.Globalization.CultureInfo.InvariantCulture);
                     string serverMessage = $"STORE | {sensorID} | {info.Zona} | {type} | {valorFinal} | {response.NewTimeStamp}";
 
                     lock (lockObject)
@@ -361,7 +337,6 @@ class Gateway
                     {
                         info.LastSync = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
                     }
-
 
                     SendSensorResponse(writer, "ACK");
                 }

@@ -36,3 +36,5 @@ C:/Users/OMEN/Documents/UNIVERSIDADE/SD/trabalho/Gateway/obj/Debug/net9.0/Gatewa
 /Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Gateway/bin/Debug/net9.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll
 /Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Gateway/bin/Debug/net9.0/Microsoft.Extensions.Logging.Abstractions.dll
 /Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Gateway/obj/Debug/net9.0/Gateway.csproj.Up2Date
+/Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Gateway/bin/Debug/net9.0/RabbitMQ.Client.dll
+/Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Gateway/bin/Debug/net9.0/System.Threading.RateLimiting.dll

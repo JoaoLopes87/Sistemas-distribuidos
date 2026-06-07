@@ -4,22 +4,27 @@ using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using Grpc.Net.Client;
 using PreProcessamentoGrpc;
+using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 
 class Gateway
 {
-    static TcpClient serverClient;
-    static StreamWriter serverWriter;
-    static StreamReader serverReader;
-    static PreProcessamentoGrpc.PreProcessamentoService.PreProcessamentoServiceClient grpcClient;
+    static TcpClient serverClient = null!;
+    static StreamWriter serverWriter = null!;
+    static StreamReader serverReader = null!;
+    static PreProcessamentoGrpc.PreProcessamentoService.PreProcessamentoServiceClient grpcClient = null!;
+
+    static IConnection rabbitConnection = null!;
+    static IChannel rabbitChannel = null!;
 
     static Dictionary<string, SensorInfo> sensores = new Dictionary<string, SensorInfo>();
 
     static object lockObject = new object();
-
-    static Mutex mtx = new Mutex();
 
     static void MonitorSensors()
     {
@@ -68,9 +73,30 @@ class Gateway
 
         new Thread(MonitorSensors) { IsBackground = true }.Start();
 
+        ConnectToServer();
+        InitRabbitMq();
+
+        int gatewayPort = 5002;
+        TcpListener sensorListener = new TcpListener(IPAddress.Any, gatewayPort);
+        sensorListener.Start();
+
+        Console.WriteLine("Gateway listening for sensors on TCP and RabbitMQ...");
+
+        while (true)
+        {
+            TcpClient sensorClient = sensorListener.AcceptTcpClient();
+            Console.WriteLine("Sensor connected via TCP.");
+
+            Thread sensorThread = new Thread(HandleSensor);
+            sensorThread.IsBackground = true;
+            sensorThread.Start(sensorClient);
+        }
+    }
+
+    static void ConnectToServer()
+    {
         string serverIP = "127.0.0.1";
         int serverPort = 6000;
-        int gatewayPort = 5002;
 
         Console.WriteLine("Connecting to server...");
 
@@ -80,23 +106,144 @@ class Gateway
         serverWriter = new StreamWriter(serverStream) { AutoFlush = true };
 
         Console.WriteLine("Connected to server.");
+    }
 
-        TcpListener sensorListener = new TcpListener(IPAddress.Any, gatewayPort);
-
-        sensorListener.Start();
-
-        Console.WriteLine("Gateway listening for sensors...");
-
-        while (true)
+    static void InitRabbitMq()
+    {
+        try
         {
-            TcpClient sensorClient = sensorListener.AcceptTcpClient();
+            var factory = new ConnectionFactory() { HostName = "localhost", UserName = "admin", Password = "password123" };
+            rabbitConnection = factory.CreateConnectionAsync(cancellationToken: default).GetAwaiter().GetResult();
+            rabbitChannel = rabbitConnection.CreateChannelAsync(cancellationToken: default).GetAwaiter().GetResult();
 
-            Console.WriteLine("Sensor connected.");
+            rabbitChannel.ExchangeDeclareAsync(exchange: "sensor_data", type: ExchangeType.Topic, durable: false, autoDelete: false, arguments: null, passive: false, noWait: false, cancellationToken: default).GetAwaiter().GetResult();
+            var queueDeclare = rabbitChannel.QueueDeclareAsync(queue: "", durable: false, exclusive: true, autoDelete: true, arguments: null, passive: false, noWait: false, cancellationToken: default).GetAwaiter().GetResult();
+            var queueName = queueDeclare.QueueName;
 
-            Thread sensorThread = new Thread(HandleSensor);
-            sensorThread.IsBackground = true;
+            var zones = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var sensor in sensores.Values)
+                zones.Add(sensor.Zona);
 
-            sensorThread.Start(sensorClient);
+            foreach (var zone in zones)
+            {
+                string routingKey = $"sensor.{zone}.*";
+                rabbitChannel.QueueBindAsync(queue: queueName, exchange: "sensor_data", routingKey: routingKey, arguments: null, noWait: false, cancellationToken: default).GetAwaiter().GetResult();
+                Console.WriteLine($"Gateway subscribed to RabbitMQ topic: {routingKey}");
+            }
+
+            var consumer = new AsyncEventingBasicConsumer(rabbitChannel);
+            consumer.ReceivedAsync += async (model, ea) =>
+            {
+                string body = Encoding.UTF8.GetString(ea.Body.ToArray());
+                ProcessRabbitMqMessage(body);
+                await rabbitChannel.BasicAckAsync(ea.DeliveryTag, multiple: false, cancellationToken: default);
+            };
+
+            rabbitChannel.BasicConsumeAsync(queue: queueName, autoAck: false, consumer: consumer, cancellationToken: default).GetAwaiter().GetResult();
+            Console.WriteLine("RabbitMQ consumer ready.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("RabbitMQ unavailable, skipping: " + ex.Message);
+        }
+    }
+
+    static void ProcessRabbitMqMessage(string message)
+    {
+        Console.WriteLine("RABBITMQ -> GATEWAY: " + message);
+
+        SensorMessage? sensorMessage;
+        try
+        {
+            sensorMessage = JsonSerializer.Deserialize<SensorMessage>(message);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Failed to parse RabbitMQ message: " + ex.Message);
+            return;
+        }
+
+        if (sensorMessage == null || string.IsNullOrWhiteSpace(sensorMessage.SensorId) || string.IsNullOrWhiteSpace(sensorMessage.Tipo))
+        {
+            Console.WriteLine("Invalid RabbitMQ payload.");
+            return;
+        }
+
+        if (!sensores.TryGetValue(sensorMessage.SensorId, out SensorInfo? info))
+        {
+            Console.WriteLine($"Unknown sensor: {sensorMessage.SensorId}");
+            return;
+        }
+
+        if (!string.Equals(info.Zona, sensorMessage.Zona, StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"Sensor zone mismatch: expected {info.Zona}, got {sensorMessage.Zona}");
+            return;
+        }
+
+        if (!string.Equals(info.Estado, "ativo", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine($"Sensor {sensorMessage.SensorId} is not active.");
+            return;
+        }
+
+        if (Array.IndexOf(info.Tipos, sensorMessage.Tipo) < 0)
+        {
+            Console.WriteLine($"Unsupported type {sensorMessage.Tipo} for sensor {sensorMessage.SensorId}.");
+            return;
+        }
+
+        ForwardToServer(sensorMessage.SensorId, info, sensorMessage.Tipo, sensorMessage.Valor, sensorMessage.Timestamp);
+    }
+
+    static void ForwardToServer(string sensorId, SensorInfo info, string type, string value, string timestamp)
+    {
+        try
+        {
+            var timestampResponse = grpcClient.ValidarTimestamp(new TimestampRequest { Timestamp = timestamp });
+
+            var escalaResponse = grpcClient.ConverterEscala(new EscalaRequest { Type = type, Value = value });
+            if (!escalaResponse.Valido)
+            {
+                Console.WriteLine($"Scale conversion failed: {escalaResponse.Erro}");
+                return;
+            }
+
+            string convertedValue = escalaResponse.NewValue.ToString(CultureInfo.InvariantCulture);
+            var valorResponse = grpcClient.NormalizarValor(new ValorRequest { Type = type, Value = convertedValue });
+            if (!valorResponse.Valido)
+            {
+                Console.WriteLine($"Value normalization failed: {valorResponse.Erro}");
+                return;
+            }
+
+            string valorFinal = escalaResponse.NewValue.ToString(CultureInfo.InvariantCulture);
+            string serverMessage = $"STORE | {sensorId} | {info.Zona} | {type} | {valorFinal} | {timestampResponse.NewTimeStamp}";
+
+            lock (lockObject)
+            {
+                try
+                {
+                    serverWriter.WriteLine(serverMessage);
+                    string serverResponse = serverReader.ReadLine() ?? string.Empty;
+
+                    Console.WriteLine("GATEWAY -> SERVER: " + serverMessage);
+                    Console.WriteLine("SERVER -> GATEWAY: " + serverResponse);
+
+                    if (serverResponse == "STORED")
+                        info.LastSync = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+                    else
+                        Console.WriteLine("Server did not store data.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Failed to send data to server: " + ex.Message);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("gRPC error: " + ex.Message);
         }
     }
 
@@ -144,9 +291,9 @@ class Gateway
         Console.WriteLine("Loaded sensors from CSV: " + sensores.Count);
     }
 
-    static void HandleSensor(object obj)
+    static void HandleSensor(object? obj)
     {
-        TcpClient sensorClient = (TcpClient)obj;
+        TcpClient sensorClient = (TcpClient)obj!;
         NetworkStream stream = sensorClient.GetStream();
         StreamReader reader = new StreamReader(stream);
         StreamWriter writer = new StreamWriter(stream) { AutoFlush = true };
@@ -159,7 +306,7 @@ class Gateway
         {
             while (true)
             {
-                string message = reader.ReadLine();
+                string? message = reader.ReadLine();
 
                 if (message == null)
                     break;
@@ -202,9 +349,8 @@ class Gateway
                     valido = true;
                     tiposValidados = false;
 
-                    // Envia os tipos permitidos na resposta
                     string tiposPermitidos = string.Join(",", info.Tipos);
-                    SendSensorResponse(writer, $"OK | {tiposPermitidos}");
+                    SendSensorResponse(writer, $"OK | {info.Zona} | {tiposPermitidos}");
                     continue;
                 }
 
@@ -286,25 +432,25 @@ class Gateway
                         continue;
                     }
 
-                    TimestampResponse response;
-                    EscalaResponse responseEscala;
-                    ValorResponse responseValor;
+                    TimestampResponse timestampResp;
+                    EscalaResponse escalaResp;
+                    ValorResponse valorResp;
 
                     try
                     {
-                        response = grpcClient.ValidarTimestamp(new TimestampRequest { Timestamp = timestamp });
+                        timestampResp = grpcClient.ValidarTimestamp(new TimestampRequest { Timestamp = timestamp });
 
-                        responseEscala = grpcClient.ConverterEscala(new EscalaRequest { Type = type, Value = value });
-                        if (!responseEscala.Valido)
+                        escalaResp = grpcClient.ConverterEscala(new EscalaRequest { Type = type, Value = value });
+                        if (!escalaResp.Valido)
                         {
-                            SendSensorResponse(writer, $"ERROR | {responseEscala.Erro}");
+                            SendSensorResponse(writer, $"ERROR | {escalaResp.Erro}");
                             continue;
                         }
 
-                        responseValor = grpcClient.NormalizarValor(new ValorRequest { Type = type, Value = responseEscala.NewValue.ToString(System.Globalization.CultureInfo.InvariantCulture) });
-                        if (!responseValor.Valido)
+                        valorResp = grpcClient.NormalizarValor(new ValorRequest { Type = type, Value = escalaResp.NewValue.ToString(CultureInfo.InvariantCulture) });
+                        if (!valorResp.Valido)
                         {
-                            SendSensorResponse(writer, $"ERROR | {responseValor.Erro}");
+                            SendSensorResponse(writer, $"ERROR | {valorResp.Erro}");
                             continue;
                         }
                     }
@@ -315,30 +461,36 @@ class Gateway
                         continue;
                     }
 
-                    string valorFinal = responseEscala.NewValue.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                    string serverMessage = $"STORE | {sensorID} | {info.Zona} | {type} | {valorFinal} | {response.NewTimeStamp}";
+                    string valorFinal = escalaResp.NewValue.ToString(CultureInfo.InvariantCulture);
+                    string serverMessage = $"STORE | {sensorID} | {info.Zona} | {type} | {valorFinal} | {timestampResp.NewTimeStamp}";
 
+                    bool stored = false;
                     lock (lockObject)
                     {
-                        serverWriter.WriteLine(serverMessage);
-                        string serverResponse = serverReader.ReadLine() ?? "";
-
-                        Console.WriteLine("GATEWAY -> SERVER: " + serverMessage);
-                        Console.WriteLine("SERVER -> GATEWAY: " + serverResponse);
-
-                        if (serverResponse != "STORED")
+                        try
                         {
-                            SendSensorResponse(writer, "ERROR | Server did not store data");
-                            continue;
+                            serverWriter.WriteLine(serverMessage);
+                            string serverResponse = serverReader.ReadLine() ?? "";
+
+                            Console.WriteLine("GATEWAY -> SERVER: " + serverMessage);
+                            Console.WriteLine("SERVER -> GATEWAY: " + serverResponse);
+
+                            if (serverResponse == "STORED")
+                            {
+                                stored = true;
+                                info.LastSync = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
+                            }
+                        }
+                        catch (Exception serverEx)
+                        {
+                            Console.WriteLine("Server communication error: " + serverEx.Message);
                         }
                     }
 
-                    lock (lockObject)
-                    {
-                        info.LastSync = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
-                    }
-
-                    SendSensorResponse(writer, "ACK");
+                    if (stored)
+                        SendSensorResponse(writer, "ACK");
+                    else
+                        SendSensorResponse(writer, "ERROR | Server did not store data");
                 }
 
                 else if (command == "VIDEO_REQUEST")
@@ -423,36 +575,5 @@ class Gateway
     {
         writer.WriteLine(response);
         Console.WriteLine("GATEWAY -> SENSOR: " + response);
-    }
-
-    static bool PreProcessar(string type, string value, out string erro)
-    {
-        erro = "";
-
-        if (!double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out double val))
-        {
-            erro = "Value is not numeric";
-            return false;
-        }
-
-        (double min, double max) = type switch
-        {
-            "TEMP"  => (-50.0, 100.0),
-            "HUM"   => (0.0, 100.0),
-            "RUIDO" => (0.0, 200.0),
-            "PM2.5" => (0.0, 1000.0),
-            "PM10"  => (0.0, 1000.0),
-            "AR"    => (0.0, 500.0),
-            "LUM"   => (0.0, 100000.0),
-            _       => (double.MinValue, double.MaxValue)
-        };
-
-        if (val < min || val > max)
-        {
-            erro = $"Value {val} out of range for type {type}";
-            return false;
-        }
-
-        return true;
     }
 }

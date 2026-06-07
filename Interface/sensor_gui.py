@@ -5,8 +5,10 @@ import time
 import sqlite3
 import os
 import queue
+import json
 import tkinter.font as tkfont
 from datetime import datetime
+import pika
 
 BG       = '#F5F5F5'
 CARD     = '#F5F5F5'
@@ -296,6 +298,7 @@ class SensorApp:
         self.wfile      = None
         self.sock_lock  = threading.Lock()
         self.sensor_id  = ''
+        self.sensor_zona = ''
         self.allowed_types    = []
         self.types_registered = False
         self.connected        = False
@@ -522,6 +525,7 @@ class SensorApp:
         self._frame_conn.pack_forget()
         self.root.geometry('1280x750')
         self._main_brand.config(text=f'■  sensor.client — {self.sensor_id}')
+        self._main_status.config(text='● Ligado', fg=OK)
         self._frame_main.pack(fill='both', expand=True)
         self._heartbeat.start()
         self._start_time = time.time()
@@ -566,13 +570,23 @@ class SensorApp:
                 self._ui_call(lambda: self._connect_failed(resp))
                 return
 
-            parts = resp.split('|', 1)
-            types = [t.strip() for t in parts[1].split(',')] if len(parts) > 1 else []
+            # Parse "OK | ZONA_NORTE | TEMP,HUM,RUIDO" (novo) ou "OK | TEMP,HUM,RUIDO" (antigo)
+            parts = resp.split('|')
+            if len(parts) >= 3:
+                zona  = parts[1].strip()
+                types = [t.strip() for t in parts[2].split(',') if t.strip()]
+            elif len(parts) >= 2:
+                zona  = ''
+                types = [t.strip() for t in parts[1].split(',') if t.strip()]
+            else:
+                zona  = ''
+                types = []
 
             self.sock = s
             self.rfile = rfile
             self.wfile = wfile
             self.sensor_id = sid
+            self.sensor_zona = zona
             self.allowed_types = types
             self.types_registered = False
             self.connected = True
@@ -634,6 +648,7 @@ class SensorApp:
     def _after_disconnect(self):
         self._main_status.config(text='● Desligado', fg=CRIT)
         self._conn_status_lbl.config(text='Desligado', fg=INK)
+        self._reset_buttons()
         self._show_connection()
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -663,6 +678,12 @@ class SensorApp:
                 btn.config(state='normal', fg=INK, meta='ativo', cursor='arrow')
         self._btn_types.config(meta='registado')
         self._btn_video.config(state='normal', fg=INK2, meta='ativo')
+
+    def _reset_buttons(self):
+        for btn in self._action_btns.values():
+            btn.config(state='disabled', fg=INK3, meta='bloqueado')
+        self._btn_types.config(meta='ativa envios')
+        self._btn_video.config(state='disabled', fg=INK3, meta='bloqueado')
 
     # ═══════════════════════════════════════════════════════════════════════════
     # SEND DATA
@@ -771,19 +792,36 @@ class SensorApp:
         entry.bind('<Return>', lambda e: submit())
 
     def _send_data_thread(self, stype, value):
-        ts  = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-        msg = f'DATA | {self.sensor_id} | {stype} | {value} | {ts}'
-        resp = self._send_recv(msg)
-        if resp is None:
-            return
+        ts    = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         label = SENSOR_LABEL[stype]
-        if resp == 'ACK':
-            self._ui_call(lambda: self._append_log('ok', f'envio {label} · {value} aceite'))
+        ok    = self._publish_rabbitmq(stype, value, ts)
+        if ok:
+            self._ui_call(lambda: self._append_log('ok', f'SENSOR → RABBITMQ [sensor.{self.sensor_zona}.{stype}]: {value}'))
             self._ui_call_later(600, self._load_analyses_silent)
         else:
-            r = resp
-            self._ui_call(lambda: self._append_log('err', f'envio {label} rejeitado: {r}'))
-            self._ui_call(lambda: self._show_error_dialog(f'Erro — {label}', r))
+            self._ui_call(lambda: self._append_log('err', f'Falha ao publicar {label} no RabbitMQ'))
+
+    def _publish_rabbitmq(self, stype, value, timestamp):
+        try:
+            credentials = pika.PlainCredentials('admin', 'password123')
+            params = pika.ConnectionParameters('localhost', credentials=credentials)
+            conn = pika.BlockingConnection(params)
+            ch = conn.channel()
+            ch.exchange_declare(exchange='sensor_data', exchange_type='topic', durable=False)
+            msg = json.dumps({
+                'SensorId':  self.sensor_id,
+                'Zona':      self.sensor_zona,
+                'Tipo':      stype,
+                'Valor':     value,
+                'Timestamp': timestamp
+            })
+            routing_key = f'sensor.{self.sensor_zona}.{stype}'
+            ch.basic_publish(exchange='sensor_data', routing_key=routing_key, body=msg.encode())
+            conn.close()
+            return True
+        except Exception as e:
+            self._ui_call(lambda err=str(e): self._append_log('err', f'RabbitMQ: {err}'))
+            return False
 
     # ═══════════════════════════════════════════════════════════════════════════
     # VIDEO REQUEST

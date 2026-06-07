@@ -1,9 +1,12 @@
 {
   "version": 2,
-  "dgSpecHash": "g/34UuJgBq4=",
+  "dgSpecHash": "l8RS4z+Ieso=",
   "success": true,
   "projectFilePath": "/Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Sensor/Sensor.csproj",
   "expectedPackageFiles": [
+    "/Users/minijotinha/.nuget/packages/rabbitmq.client/7.0.0/rabbitmq.client.7.0.0.nupkg.sha512",
+    "/Users/minijotinha/.nuget/packages/system.io.pipelines/8.0.0/system.io.pipelines.8.0.0.nupkg.sha512",
+    "/Users/minijotinha/.nuget/packages/system.threading.ratelimiting/8.0.0/system.threading.ratelimiting.8.0.0.nupkg.sha512",
     "/Users/minijotinha/.nuget/packages/microsoft.netcore.app.ref/9.0.14/microsoft.netcore.app.ref.9.0.14.nupkg.sha512",
     "/Users/minijotinha/.nuget/packages/microsoft.aspnetcore.app.ref/9.0.14/microsoft.aspnetcore.app.ref.9.0.14.nupkg.sha512",
     "/Users/minijotinha/.nuget/packages/microsoft.netcore.app.host.osx-arm64/9.0.14/microsoft.netcore.app.host.osx-arm64.9.0.14.nupkg.sha512"

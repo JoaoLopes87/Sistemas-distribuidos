@@ -28,3 +28,7 @@ C:/Users/OMEN/Documents/UNIVERSIDADE/SD/trabalho/Sensor/obj/Debug/net9.0/Sensor.
 /Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Sensor/obj/Debug/net9.0/Sensor.pdb
 /Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Sensor/obj/Debug/net9.0/Sensor.genruntimeconfig.cache
 /Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Sensor/obj/Debug/net9.0/ref/Sensor.dll
+/Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Sensor/bin/Debug/net9.0/RabbitMQ.Client.dll
+/Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Sensor/bin/Debug/net9.0/System.Threading.RateLimiting.dll
+/Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Sensor/obj/Debug/net9.0/Sensor.csproj.AssemblyReference.cache
+/Users/minijotinha/SD_WORK/SensorApp/Sistemas-distribuidos/Sensor/obj/Debug/net9.0/Sensor.csproj.Up2Date

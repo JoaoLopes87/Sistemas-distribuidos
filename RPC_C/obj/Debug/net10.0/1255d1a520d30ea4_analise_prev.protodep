@@ -1,0 +1,2 @@
+obj/Debug/net10.0/Protos/AnalisePrev.cs \
+obj/Debug/net10.0/Protos/AnalisePrevGrpc.cs: Protos/analise_prev.proto

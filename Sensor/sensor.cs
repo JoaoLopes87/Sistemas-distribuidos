@@ -10,7 +10,7 @@ class Sensor
     static void Main()
     {
         string gatewayIP = "127.0.0.1";
-        int gatewayPort = 5001;
+        int gatewayPort = 5002;
 
         Console.Write("Enter sensor ID: ");
         string sensorID = Console.ReadLine() ?? "unknown";
@@ -78,7 +78,7 @@ class Sensor
             switch (choice)
             {
                 case "1":
-                    Console.Write("Temperature value: ");
+                    Console.Write("Temperature value (ex: 20c, 70f, 300k): ");
                     string tempValue = Console.ReadLine() ?? "0";
                     lock (sensorLock)
                     {
@@ -87,7 +87,7 @@ class Sensor
                     break;
 
                 case "2":
-                    Console.Write("Humidity value: ");
+                    Console.Write("Humidity value (ex: 65, 65%): ");
                     string humValue = Console.ReadLine() ?? "0";
                     lock (sensorLock)
                     {
@@ -96,7 +96,7 @@ class Sensor
                     break;
 
                 case "3":
-                    Console.Write("Noise value (dB): ");
+                    Console.Write("Noise value (ex: 85, 85db): ");
                     string ruidoValue = Console.ReadLine() ?? "0";
                     lock (sensorLock)
                     {
@@ -123,7 +123,7 @@ class Sensor
                     break;
 
                 case "6":
-                    Console.Write("Luminosity value: ");
+                    Console.Write("Luminosity value (ex: 500, 500lux): ");
                     string lumValue = Console.ReadLine() ?? "0";
                     lock (sensorLock)
                     {

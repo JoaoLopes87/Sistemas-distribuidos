@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+option csharp_namespace = "AnalisePrevGrpc";
+
+service AnalisePrevService {
+
+rpc Analisar (AnalisarRequest)
+      returns (AnalisarResponse);
+
+  rpc DetetarPol (PolRequest)
+      returns (PolResponse);
+
+  rpc PrevRisco (RiscoRequest)
+      returns (RiscoResponse);
+
+}
+
+message AnalisarRequest {
+    string type  = 1;
+    string value = 2;
+    string zona  = 3;
+}
+
+message AnalisarResponse {
+    bool   valido   = 1;
+    string nivel    = 2;
+    string mensagem = 3;
+    string erro     = 4;
+}
+
+message PolRequest {
+    string zona  = 1;
+    string pm25  = 2;
+    string pm10  = 3;
+    string ar    = 4;
+}
+
+message PolResponse {
+    string mensagem = 1;
+}
+
+message RiscoRequest {}
+message RiscoResponse {}

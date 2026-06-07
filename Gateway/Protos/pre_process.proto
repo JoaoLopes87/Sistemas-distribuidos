@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+option csharp_namespace = "PreProcessamentoGrpc";
+
+service PreProcessamentoService {
+
+rpc ValidarTimestamp (TimestampRequest)
+      returns (TimestampResponse);
+
+  rpc NormalizarValor (ValorRequest)
+      returns (ValorResponse);
+
+  rpc ConverterEscala (EscalaRequest)
+      returns (EscalaResponse);
+
+}
+
+message TimestampRequest{
+    string timestamp = 1; 
+}
+
+message TimestampResponse{
+    bool valido = 1;
+    string NewTimeStamp = 2;
+    string erro = 3;
+}
+
+message ValorRequest{
+    string type = 1;
+    string value = 2;
+}
+
+message ValorResponse{
+    bool valido = 1;
+    string NewValue = 2;
+    string erro = 3;
+}
+
+message EscalaRequest{
+    string type  = 1;
+    string value = 2;
+}
+
+message EscalaResponse{
+    bool   valido   = 1;
+    float  NewValue = 2;
+    string erro     = 3;
+}

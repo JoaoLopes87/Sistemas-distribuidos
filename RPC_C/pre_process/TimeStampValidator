@@ -1,0 +1,48 @@
+using Grpc.Core;
+using PreProcessamentoGrpc;
+using System.Globalization;
+
+namespace RPC_C.Services;
+
+public class PreProcessamentoServiceImpl
+    : PreProcessamentoService.PreProcessamentoServiceBase
+{
+    public override Task<TimestampResponse>
+        ValidarTimestamp(
+            TimestampRequest request,
+            ServerCallContext context)
+    {
+        string[] formatos =
+        {
+            "yyyy-MM-ddTHH:mm:ss",
+            "dd/MM/yyyy HH:mm:ss",
+            "dd/MM/yyyy HH:mm",
+            "MM-dd-yyyy hh:mm tt"
+        };
+
+        bool valido = DateTime.TryParseExact(
+            request.Timestamp,
+            formatos,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out DateTime data
+        );
+
+        if (!valido)
+        {
+            return Task.FromResult(new TimestampResponse
+            {
+                Valido = false,
+                NewTimeStamp = "",
+                Erro = "Timestamp inválido"
+            });
+        }
+
+        return Task.FromResult(new TimestampResponse
+        {
+            Valido = true,
+            NewTimeStamp = data.ToString("yyyy-MM-ddTHH:mm:ss"),
+            Erro = ""
+        });
+    }
+}

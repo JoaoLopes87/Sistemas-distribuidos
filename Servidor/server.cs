@@ -69,7 +69,7 @@ class Server
     {
         TcpClient client = (TcpClient)obj;
         NetworkStream stream = client.GetStream();
-        stream.ReadTimeout = 30000; // ✅ 30 segundos timeout
+        stream.ReadTimeout = 30000; 
         stream.WriteTimeout = 30000;
 
         StreamReader reader = new StreamReader(stream);

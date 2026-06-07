@@ -1,0 +1,2 @@
+obj/Debug/net10.0/Protos/PreProcess.cs \
+obj/Debug/net10.0/Protos/PreProcessGrpc.cs: Protos/pre_process.proto

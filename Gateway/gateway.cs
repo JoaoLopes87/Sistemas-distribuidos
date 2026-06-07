@@ -5,12 +5,15 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using Grpc.Net.Client;
+using PreProcessamentoGrpc;
 
 class Gateway
 {
     static TcpClient serverClient;
     static StreamWriter serverWriter;
     static StreamReader serverReader;
+    static PreProcessamentoGrpc.PreProcessamentoService.PreProcessamentoServiceClient grpcClient;
 
     static Dictionary<string, SensorInfo> sensores = new Dictionary<string, SensorInfo>();
 
@@ -31,7 +34,7 @@ class Gateway
 
                     if (DateTime.TryParse(v.LastSync, out DateTime last))
                     {
-                        if ((DateTime.Now - last).TotalSeconds > 30)
+                        if ((DateTime.Now - last).TotalSeconds > 75)
                         {
                             if (v.Estado != "inativo")
                             {
@@ -44,7 +47,7 @@ class Gateway
                 }
             }
 
-            Thread.Sleep(60000);
+            Thread.Sleep(5000);
 
             if (changed)
             {
@@ -58,13 +61,16 @@ class Gateway
 
     static void Main()
     {
+        var channel = GrpcChannel.ForAddress("http://localhost:5166");
+        grpcClient = new PreProcessamentoGrpc.PreProcessamentoService.PreProcessamentoServiceClient(channel);
+
         LoadSensorsFromCsv("sensors_.csv");
 
         new Thread(MonitorSensors) { IsBackground = true }.Start();
 
         string serverIP = "127.0.0.1";
         int serverPort = 6000;
-        int gatewayPort = 5001;
+        int gatewayPort = 5002;
 
         Console.WriteLine("Connecting to server...");
 
@@ -280,24 +286,61 @@ class Gateway
                         continue;
                     }
 
-                    if (!DateTime.TryParseExact(
-                            timestamp,
-                            "yyyy-MM-ddTHH:mm:ss",
-                            CultureInfo.InvariantCulture,
-                            DateTimeStyles.None,
-                            out _))
+                    var request = new TimestampRequest
                     {
-                        SendSensorResponse(writer, "ERROR | Invalid timestamp");
+                        Timestamp = timestamp
+                    };
+
+                    var response = grpcClient.ValidarTimestamp(request);
+
+              //      if (!DateTime.TryParseExact(
+              //              timestamp,
+              //              "yyyy-MM-ddTHH:mm:ss",
+              //              CultureInfo.InvariantCulture,
+              //              DateTimeStyles.None,
+              //              out _))
+              //      {
+              //          SendSensorResponse(writer, "ERROR | Invalid timestamp");
+              //          continue;
+              //      }
+
+                    var requestEscala = new EscalaRequest
+                    {
+                        Type = type,
+                        Value = value
+                    }; 
+
+                    var responseEscala = grpcClient.ConverterEscala(requestEscala);
+
+                    if (!responseEscala.Valido)
+                    {
+                        SendSensorResponse(writer, $"ERROR | {responseEscala.Erro}");
                         continue;
                     }
 
-                    if (!PreProcessar(type, value, out string erroPreProcessamento))
+                    string valorFinal = responseEscala.NewValue.ToString();
+
+                    var requestValor = new ValorRequest
                     {
-                        SendSensorResponse(writer, $"ERROR | {erroPreProcessamento}");
+                        Type = type,
+                        Value = valorFinal
+                    };
+
+                    var responseValor = grpcClient.NormalizarValor(requestValor);
+
+                    if (!responseValor.Valido)
+                    {
+                        SendSensorResponse(writer, $"ERROR | {responseValor.Erro}");
                         continue;
                     }
 
-                    string serverMessage = $"STORE | {sensorID} | {info.Zona} | {type} | {value} | {timestamp}";
+                   // if (!PreProcessar(type, valorFinal, out string erroPreProcessamento))
+                    //{
+                    //    SendSensorResponse(writer, $"ERROR | {erroPreProcessamento}");
+                    //    continue;
+                   // }
+
+                    string serverMessage = $"STORE | {sensorID} | {info.Zona} | {type} | {valorFinal} | {response.NewTimeStamp}";
 
                     lock (lockObject)
                     {
@@ -318,6 +361,7 @@ class Gateway
                     {
                         info.LastSync = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
                     }
+
 
                     SendSensorResponse(writer, "ACK");
                 }

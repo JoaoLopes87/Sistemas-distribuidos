@@ -13,13 +13,21 @@ public class PreProcessamentoServiceImpl
             ServerCallContext context)
     {
 
+        // Accept strict format or common ISO formats (including round-trip / timezone)
+        DateTime data;
         bool valido = DateTime.TryParseExact(
             request.Timestamp,
             "yyyy-MM-ddTHH:mm:ss",
             CultureInfo.InvariantCulture,
             DateTimeStyles.None,
-            out DateTime data
+            out data
         );
+
+        if (!valido)
+        {
+            // fallback to more permissive parse (handles "o" and timezone offsets)
+            valido = DateTime.TryParse(request.Timestamp, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out data);
+        }
 
         if (!valido)
         {

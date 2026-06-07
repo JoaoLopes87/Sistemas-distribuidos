@@ -117,7 +117,8 @@ class Gateway
 
         foreach (var zone in zones)
         {
-            string routingKey = $"sensor.{zone}.*";
+            string zoneNorm = zone.ToLowerInvariant();
+            string routingKey = $"sensor.{zoneNorm}.*";
             rabbitChannel.QueueBindAsync(queue: queueName, exchange: "sensor_data", routingKey: routingKey, arguments: null, noWait: false, cancellationToken: default).GetAwaiter().GetResult();
             Console.WriteLine($"Gateway subscribed to topic: {routingKey}");
         }

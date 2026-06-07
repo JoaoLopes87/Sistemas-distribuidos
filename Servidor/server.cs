@@ -69,6 +69,11 @@ class Server
                     nivel              TEXT NOT NULL,
                     mensagem           TEXT,
                     erro               TEXT,
+                    sample_count       INTEGER,
+                    min                REAL,
+                    max                REAL,
+                    mean               REAL,
+                    trend              TEXT,
                     analysis_timestamp TEXT NOT NULL
                 );";
 
@@ -193,13 +198,13 @@ class Server
             using var connection = new SqliteConnection(connectionString);
             connection.Open();
 
-            string query = @"SELECT id, sensor_id, zone, type, value, nivel, mensagem, erro, analysis_timestamp FROM analysis_results ORDER BY id DESC LIMIT 50;";
+            string query = @"SELECT id, sensor_id, zone, type, value, nivel, mensagem, erro, sample_count, min, max, mean, trend, analysis_timestamp FROM analysis_results ORDER BY id DESC LIMIT 50;";
             using var cmd = new SqliteCommand(query, connection);
             using var reader = cmd.ExecuteReader();
 
             while (reader.Read())
             {
-                Console.WriteLine($"[{reader.GetInt64(0)}] {reader.GetString(1)} | {reader.GetString(2)} | {reader.GetString(3)} | {reader.GetString(4)} | nivel={reader.GetString(5)} | msg={reader.GetString(6)} | erro={reader.GetString(7)} | {reader.GetString(8)}");
+                Console.WriteLine($"[{reader.GetInt64(0)}] {reader.GetString(1)} | {reader.GetString(2)} | {reader.GetString(3)} | {reader.GetString(4)} | nivel={reader.GetString(5)} | msg={reader.GetString(6)} | erro={reader.GetString(7)} | samples={reader.GetInt32(8)} min={reader.GetDouble(9)} max={reader.GetDouble(10)} mean={reader.GetDouble(11):F2} trend={reader.GetString(12)} | {reader.GetString(13)}");
             }
         }
     }
@@ -265,7 +270,8 @@ class Server
         if (analysisClient == null)
         {
             Console.WriteLine("Analysis client is not initialized.");
-            StoreAnalysisResult(sensorId, zone, type, value, timestamp, "ERROR", string.Empty, "Analysis client not initialized");
+            var statsInit = ComputeStats(sensorId, zone, type, 100);
+            StoreAnalysisResult(sensorId, zone, type, value, timestamp, "ERROR", string.Empty, "Analysis client not initialized", statsInit.count, statsInit.min, statsInit.max, statsInit.mean, statsInit.trend);
             return;
         }
 
@@ -278,21 +284,100 @@ class Server
                 Zona = zone
             });
 
+            // compute statistics from stored measurements
+            var stats = ComputeStats(sensorId, zone, type, 100);
+
             string nivel = response.Valido ? response.Nivel : "ERROR";
             string mensagem = response.Valido ? response.Mensagem : string.Empty;
             string erro = response.Valido ? string.Empty : response.Erro;
 
-            StoreAnalysisResult(sensorId, zone, type, value, timestamp, nivel, mensagem, erro);
+            StoreAnalysisResult(sensorId, zone, type, value, timestamp, nivel, mensagem, erro, stats.count, stats.min, stats.max, stats.mean, stats.trend);
             Console.WriteLine($"Analysis result for {sensorId}: {nivel} - {mensagem}");
         }
         catch (Exception ex)
         {
             Console.WriteLine("Analysis RPC error: " + ex.Message);
-            StoreAnalysisResult(sensorId, zone, type, value, timestamp, "ERROR", string.Empty, ex.Message);
+            var statsErr = ComputeStats(sensorId, zone, type, 100);
+            StoreAnalysisResult(sensorId, zone, type, value, timestamp, "ERROR", string.Empty, ex.Message, statsErr.count, statsErr.min, statsErr.max, statsErr.mean, statsErr.trend);
         }
     }
 
-    static void StoreAnalysisResult(string sensorId, string zone, string type, string value, string timestamp, string nivel, string mensagem, string erro)
+    static (int count, double min, double max, double mean, string trend) ComputeStats(string sensorId, string zone, string type, int limit = 100)
+    {
+        try
+        {
+            lock (dbLock)
+            {
+                using var connection = new SqliteConnection(connectionString);
+                connection.Open();
+
+                string query = @"SELECT value, timestamp FROM measurements WHERE sensor_id = @sensorId AND zone = @zone AND type = @type ORDER BY id DESC LIMIT @limit;";
+                using var cmd = new SqliteCommand(query, connection);
+                cmd.Parameters.AddWithValue("@sensorId", sensorId);
+                cmd.Parameters.AddWithValue("@zone", zone);
+                cmd.Parameters.AddWithValue("@type", type);
+                cmd.Parameters.AddWithValue("@limit", limit);
+
+                using var reader = cmd.ExecuteReader();
+                var values = new List<double>();
+                var times = new List<DateTime>();
+
+                while (reader.Read())
+                {
+                    string sVal = reader.GetString(0);
+                    string sTime = reader.GetString(1);
+                    if (double.TryParse(sVal, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double v) && DateTime.TryParse(sTime, out DateTime t))
+                    {
+                        values.Add(v);
+                        times.Add(t);
+                    }
+                }
+
+                if (values.Count == 0)
+                    return (0, 0.0, 0.0, 0.0, "UNKNOWN");
+
+                values.Reverse(); // oldest first
+                times.Reverse();
+
+                int n = values.Count;
+                double min = double.PositiveInfinity, max = double.NegativeInfinity, sum = 0.0;
+                for (int i = 0; i < n; i++)
+                {
+                    double v = values[i];
+                    if (v < min) min = v;
+                    if (v > max) max = v;
+                    sum += v;
+                }
+                double mean = sum / n;
+
+                // trend via simple linear regression on index (time progression)
+                if (n < 2)
+                    return (n, min, max, mean, "STABLE");
+
+                double sx = 0, sy = 0, sxx = 0, sxy = 0;
+                for (int i = 0; i < n; i++)
+                {
+                    double x = i;
+                    double y = values[i];
+                    sx += x;
+                    sy += y;
+                    sxx += x * x;
+                    sxy += x * y;
+                }
+
+                double slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+                string trend = Math.Abs(slope) < 1e-6 ? "STABLE" : (slope > 0 ? "INCREASING" : "DECREASING");
+
+                return (n, min, max, mean, trend);
+            }
+        }
+        catch
+        {
+            return (0, 0.0, 0.0, 0.0, "ERROR");
+        }
+    }
+
+    static void StoreAnalysisResult(string sensorId, string zone, string type, string value, string timestamp, string nivel, string mensagem, string erro, int sampleCount, double min, double max, double mean, string trend)
     {
         try
         {
@@ -302,8 +387,8 @@ class Server
                 connection.Open();
 
                 string insert = @"
-                    INSERT INTO analysis_results (sensor_id, zone, type, value, timestamp, nivel, mensagem, erro, analysis_timestamp)
-                    VALUES (@sensorId, @zone, @type, @value, @timestamp, @nivel, @mensagem, @erro, @analysisTimestamp);";
+                    INSERT INTO analysis_results (sensor_id, zone, type, value, timestamp, nivel, mensagem, erro, sample_count, min, max, mean, trend, analysis_timestamp)
+                    VALUES (@sensorId, @zone, @type, @value, @timestamp, @nivel, @mensagem, @erro, @sampleCount, @min, @max, @mean, @trend, @analysisTimestamp);";
 
                 using var cmd = new SqliteCommand(insert, connection);
                 cmd.Parameters.AddWithValue("@sensorId", sensorId);
@@ -314,6 +399,11 @@ class Server
                 cmd.Parameters.AddWithValue("@nivel", nivel);
                 cmd.Parameters.AddWithValue("@mensagem", mensagem);
                 cmd.Parameters.AddWithValue("@erro", erro);
+                cmd.Parameters.AddWithValue("@sampleCount", sampleCount);
+                cmd.Parameters.AddWithValue("@min", min);
+                cmd.Parameters.AddWithValue("@max", max);
+                cmd.Parameters.AddWithValue("@mean", mean);
+                cmd.Parameters.AddWithValue("@trend", trend);
                 cmd.Parameters.AddWithValue("@analysisTimestamp", DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss"));
 
                 cmd.ExecuteNonQuery();
